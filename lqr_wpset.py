@@ -5,14 +5,15 @@ from __future__ import unicode_literals, print_function
 ####################
 
 # Usage examples:
-# gimp -ib '(python-fu-lqr-wpset RUN-NONINTERACTIVE "file.jpg") (gimp-quit 0)'
+# cp lqr_wpset.py ~/.gimp-2.6/plug-ins/ && chmod +x ~/.gimp-2.6/plug-ins/lqr_wpset.py
+# gimp -ib '(python-fu-lqr-wpset RUN-NONINTERACTIVE "file.jpg") (gimp-quit TRUE)'
 # gimp -ib '(catch (gimp-message "WS-ERR_FAIL")
 # 		(gimp-message-set-handler ERROR-CONSOLE)
 # 		(python-fu-lqr-wpset RUN-NONINTERACTIVE "file.jpg"))
 # 	(gimp-quit TRUE)' 2>&1 1>/dev/null | tee log | grep WS-ERR
 
 __author__ = 'Mike Kazantsev'
-__copyright__ = 'Copyright 2010, Mike Kazantsev'
+__copyright__ = 'Copyright 2011, Mike Kazantsev'
 __license__ = 'BSD'
 __version__ = '0.1'
 __email__ = 'mk.fraggod@gmail.com'
@@ -23,7 +24,8 @@ __description__ = 'LQR-rescale image to desktop size and set as a background.'
 max_aspect_diff = 0.5 # 16/9 - 4/3 = 0.444
 max_smaller_diff = 2 # don't process images N times smaller by area (w*h)
 label_offset = 10, 10
-label_colors = (255, 0, 0), (0, 255, 0), (0, 0, 255) # most contrast one will be chosen
+label_colors = [0]*3, [255]*3, (255, 0, 0),\
+	(0, 255, 0), (0, 0, 255), (255, 255, 0), (0, 255, 255) # most contrast one will be chosen
 timestamp_format = '%H:%M %d.%m.%Y' # None to disable
 font_filename = 'URW Palladio L Medium', 16
 font_timestamp = 'URW Palladio L Medium', 11
@@ -132,7 +134,7 @@ def lqr_wpset(path):
 		color_diffs = dict(
 			(color_bg_diff(RGBColor(*color)), color)
 			for color in label_colors )
-	color = color_diffs[max(color_diffs)]
+	color = tuple(color_diffs[max(color_diffs)])
 	# set the picked color for all the label layers, meld all the layers together
 	for layer in label_layers: pdb.gimp_text_layer_set_color(layer, color)
 	image.flatten()
