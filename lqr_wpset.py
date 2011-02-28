@@ -26,13 +26,15 @@ max_smaller_diff = 2 # don't process images N times smaller by area (w*h)
 label_offset = 10, 10
 label_colors = [0]*3, [255]*3, (255, 0, 0),\
 	(0, 255, 0), (0, 0, 255), (255, 255, 0), (0, 255, 255) # most contrast one will be chosen
-timestamp_format = '%H:%M %d.%m.%Y' # None to disable
 font_filename = 'URW Palladio L Medium', 16
 font_timestamp = 'URW Palladio L Medium', 11
 tmp_dir = '/tmp'
 
+# see also extra-bulky "label_tags" definition in the script's tail
 ####################
 
+
+### Body of a plugin
 
 import itertools as it, operator as op, functools as ft
 from datetime import datetime
@@ -42,6 +44,26 @@ import os, sys, gtk
 from gimpfu import *
 import gimp
 
+def process_tags(path):
+	meta = dict()
+	try: import pyexiv2
+	except ImportError: pass # TODO: gimp is capable of parsing XMP on it's own
+	else:
+		tags = pyexiv2.ImageMetadata(path)
+		tags.read()
+		for spec in label_tags:
+			label, tag_ids = spec[:2]
+			for tag_id in tag_ids:
+				try:
+					meta[label] = tags[bytes(tag_id)]
+					try: meta[label] = meta[label].human_value
+					except AttributeError:
+						try: meta[label] = meta[label].value
+						except AttributeError: pass
+					meta[label] = meta[label].strip()
+				except KeyError: pass
+				else: break
+	return meta
 
 def lqr_wpset(path):
 	image = pdb.gimp_file_load(path, path)
@@ -62,28 +84,36 @@ def lqr_wpset(path):
 
 	## Check whether size/aspect difference isn't too great
 	diff_aspect = abs(float(w)/h - float(image.width)/image.height)
-	diff_size = float(image.width*image.height) / (w*h)
+	diff_size = float(image.width * image.height) / (w*h)
 	if diff_aspect > max_aspect_diff or diff_size < 1.0/max_smaller_diff:
 		pdb.gimp_message( 'Aspect diff: {:.2f} (max: {:.2f}), size diff: {:.2f} (min: {:.2f})'\
 			.format(diff_aspect, max_aspect_diff, diff_size, 1.0/max_smaller_diff) )
 		pdb.gimp_message('WPS-ERR:next')
 		return
 
-	## Metadata: get image timestamp from parasite tags or file mtime
-	ts, meta = None, image.parasite_list()
-	if 'exif-data' in meta: # EXIF
-		from EXIF import process_file
-		ts = process_file(open(path))#, stop_tag='DateTime')
-		ts = ts.get('Image DateTime') or ts.get('EXIF DateTimeOriginal')
-	# XMP parsing seem to invariably fail with my current gimp version, no idea why
-	# if not ts and 'gimp-metadata' in meta: # XMP
-	# 	try:
-	# 		print(pdb.plug_in_metadata_get_simple(image, 'dc', 'Date'))
-	# 		print(pdb.plug_in_metadata_get_simple(image, 'xmpMM', 'HistoryWhen'))
-	# 		print(pdb.plug_in_metadata_get_simple(image, 'http://purl.org/dc/elements/1.1/', 'Date'))
-	# 	except RuntimeError: pass # these seem to be quite common with XMP metadata
-	ts, ts_src = (datetime.strptime(str(ts), '%Y:%m:%d %H:%M:%S'), 'exif')\
-		if ts else (datetime.fromtimestamp(os.stat(path).st_mtime), 'mtime')
+	## Metadata: image name, data from image parasite tags and/or file mtime
+	meta_base = { 'title': os.path.basename(path),
+		'created': datetime.fromtimestamp(os.stat(path).st_mtime),
+		'original size': '{}x{}'.format(*op.attrgetter('width', 'height')(image)) }
+	meta = process_tags(path)\
+		if set(image.parasite_list())\
+			.intersection(['icc-profile', 'jpeg-settings',
+				'exif-data', 'gimp-metadata'])\
+		else dict()
+	for spec in label_tags:
+		try: label, conv = op.itemgetter(0, 2)(spec)
+		except IndexError: continue
+		else:
+			if label in meta: # try to use tags whenever possible
+				try: meta[label] = '{} (tag)'.format(conv(meta[label]))
+				except: meta[label] = '{} (raw tag)'.format(meta[label])
+			else:
+				try: meta_base[label] = '{}'.format(conv(meta_base.get(label)))
+				except:
+					if label in meta_base:
+						meta_base[label] = '{} (raw)'.format(meta_base[label])
+	meta_base.update(meta)
+	meta = meta_base
 
 	## All but the first 4 parameters are defaults, taken from batch-gimp-lqr.scm
 	pdb.plug_in_lqr( image, layer_image, w, h,
@@ -91,25 +121,23 @@ def lqr_wpset(path):
 
 	## Render label on top of the image layer
 	# first, render all the the text boxes
-	label_name = pdb.gimp_text_fontname( image, layer_image,
-		label_offset[0], label_offset[1], os.path.basename(path),
+	# image title, larger than the rest of the tags
+	label_title = pdb.gimp_text_fontname( image, layer_image,
+		label_offset[0], label_offset[1], meta.pop('title'),
 		-1, True, font_filename[1], PIXELS, font_filename[0] )
-	pdb.gimp_floating_sel_to_layer(label_name)
-	if timestamp_format:
-		offset_layer = 0.5 * font_timestamp[1]
-		offset_y = label_name.offsets[1] + label_name.height + offset_layer
-		label_tsl = pdb.gimp_text_fontname( image, layer_image,
-				label_name.offsets[1] + 3 * font_timestamp[1], offset_y,
-				'created:\nset:', -1, True, font_timestamp[1], PIXELS, font_timestamp[0] )
-		pdb.gimp_floating_sel_to_layer(label_tsl)
-		label_ts = pdb.gimp_text_fontname( image, layer_image,
-				label_tsl.offsets[0] + label_tsl.width + offset_layer, offset_y,
-				'{} ({})\n{}'.format( ts.strftime(timestamp_format), ts_src,
-					datetime.now().strftime(timestamp_format) ),
-				-1, True, font_timestamp[1], PIXELS, font_timestamp[0] )
-		pdb.gimp_floating_sel_to_layer(label_ts)
-		label_layers = label_name, label_tsl, label_ts
-	else: label_layers = label_name,
+	pdb.gimp_floating_sel_to_layer(label_title)
+	# timestamps
+	offset_layer = 0.5 * font_timestamp[1]
+	offset_y = label_title.offsets[1] + label_title.height + offset_layer
+	label_keys = pdb.gimp_text_fontname( image, layer_image,
+			label_title.offsets[1] + 3 * font_timestamp[1], offset_y,
+			'\n'.join(meta.viewkeys()), -1, True, font_timestamp[1], PIXELS, font_timestamp[0] )
+	pdb.gimp_floating_sel_to_layer(label_keys)
+	label_vals = pdb.gimp_text_fontname( image, layer_image,
+			label_keys.offsets[0] + label_keys.width + offset_layer, offset_y,
+			'\n'.join(meta.viewvalues()), -1, True, font_timestamp[1], PIXELS, font_timestamp[0] )
+	pdb.gimp_floating_sel_to_layer(label_vals)
+	label_layers = label_title, label_keys, label_vals
 
 	# find average color within the label_geom box
 	#  and pick the most distant color from label_colors
@@ -155,6 +183,64 @@ def lqr_wpset(path):
 	pb.render_to_drawable(win, gtk.gdk.GC(win), 0, 0, 0, 0, -1, -1)
 
 
+### Extra bulky metadata
+
+# fields to display on label
+# first nonempty tag on the list will be used for a label, unfilled entries will be hidden
+# optional third element is a conversion/autofill function, see "set", "created"
+# pre-initialized fields are "title" (file basename), "created" (file mtime as datetime)
+# all the fields are taken from here: http://www.exiv2.org/metadata.html
+ts_format = '%H:%M %d.%m.%Y' # just for conversion funcs below
+label_tags = [
+	('title', [ 'Xmp.dc.title',
+			'Xmp.xmp.Label',
+			'Exif.Image.XPTitle',
+			'Xmp.iptcExt.AOTitle',
+			'Xmp.tiff.ImageDescription',
+			'Exif.Image.ImageDescription',
+			'Xmp.dc.description' ],
+		lambda title: title if not isinstance(title, dict)\
+			else ', '.join(title.viewvalues())),
+	('author', [ 'Exif.Image.Artist',
+			'Xmp.dc.creator',
+			'Xmp.xmpRights.Owner',
+			'Xmp.plus.CopyrightOwnerName',
+			'Xmp.plus.ImageCreatorName',
+			'Xmp.iptcExt.AOCreator',
+			'Exif.Image.XPAuthor',
+			'Xmp.digiKam.CaptionsAuthorNames',
+			'Iptc.Application2.Credit',
+			'Xmp.photoshop.Credit',
+			'Xmp.plus.ImageSupplierName',
+			'Xmp.dc.contributor',
+			'Xmp.dc.publisher',
+			'Exif.Canon.OwnerName',
+			'Xmp.expressionmedia.People',
+			'Xmp.mediapro.People' ]),
+	('created', [ 'Exif.Image.DateTime',
+			'Xmp.xmp.CreateDate',
+			'Xmp.iptcExt.AODateCreated',
+			'Exif.Image.DateTimeOriginal',
+			'Xmp.exif.DateTimeOriginal',
+			'Xmp.dc.date', 'Xmp.photoshop.DateCreated',
+			'Xmp.tiff.DateTime',
+			'Xmp.MicrosoftPhoto.DateAcquired',
+			'Exif.Pentax.Date',
+			'Exif.MinoltaCsNew.MinoltaDate'
+			'Iptc.Application2.DateCreated',
+			'Xmp.plus.FirstPublicationDate',
+			'Iptc.Application2.ReleaseDate',
+			'Xmp.digiKam.CaptionsDateTimeStamps',
+			'Xmp.xmp.ModifyDate',
+			'Exif.GPSInfo.GPSDateStamp'
+			'Iptc.Envelope.DateSent',
+			'Exif.Panasonic.WorldTimeLocation' ],
+		lambda ts: ( datetime.strptime(ts, '%Y:%m:%d %H:%M:%S')
+			if not isinstance(ts, datetime) else ts).strftime(ts_format)),
+	('set', [], lambda ts: datetime.now().strftime(ts_format)) ]
+
+
+### Gimp plugin boilerplate
 register(
 	'lqr_wpset',
 	__blurb__, __description__,
@@ -164,5 +250,4 @@ register(
 	'RGB*',
 	[(PF_STRING, 'file_name', 'Input file name', '')], [],
 	lqr_wpset )
-
 main()
