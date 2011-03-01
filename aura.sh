@@ -10,7 +10,7 @@ activity_timeout=$(( 30 * 60 )) # 30min
 
 gimp_cmd="nice ionice -c3 gimp"
 
-wps_dir=~/.wps
+wps_dir=~/.aura
 blacklist="$wps_dir"/blacklist
 log_err="$wps_dir"/picker.log
 log_hist="$wps_dir"/history.log
@@ -68,7 +68,8 @@ done
 
 
 ## Pre-start sanity checks
-pid_instance=$(pgrep -F "$pid")
+pid_instance=
+[[ -e "$pid" ]] && pid_instance=$(pgrep -F "$pid")
 if [[ -n "$pid_instance" ]]; then
 	echo >&2 "Detected already running instance (pid: $pid_instance)"
 	exit 0
@@ -94,9 +95,9 @@ echo $$ >"$pid"
 sleep_int() {
 	sleep "$1" &
 	echo $! >"$pid"
-	wait $!
-	local err=$?
-	[[ "$err" -gt 0 ]] && kill -$(( $err - 128 )) 0
+	wait $! &>/dev/null
+	local err=$(( $? - 128 ))
+	[[ "$err" -gt 0 ]] && kill "-${err}" 0
 	echo $$ >"$pid"
 }
 
@@ -106,6 +107,8 @@ bg_list_ts=0
 bg_count=0
 
 trap : HUP # "snap outta sleep" signal
+trap "exit 0" TERM
+trap "trap : term; pkill -g 0; exit 1" EXIT # cleanup of backgrounded processes
 
 while :; do
 	# Just sleep if there's no activity
