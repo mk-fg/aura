@@ -23,6 +23,7 @@ __description__ = 'LQR-rescale image to desktop size and set as a background.'
 
 max_aspect_diff = 0.5 # 16/9 - 4/3 = 0.444
 max_smaller_diff = 2 # don't process images N times smaller by area (w*h)
+min_prescale_diff = 0.3 # rescale larger/smaller images preserving aspect, then with lqr
 label_offset = 10, 10
 label_colors = [0]*3, [255]*3, (255, 0, 0),\
 	(0, 255, 0), (0, 0, 255), (255, 255, 0), (0, 255, 255) # most contrast one will be chosen
@@ -83,10 +84,11 @@ def lqr_wpset(path):
 	image.remove_layer(layer_guide)
 
 	## Check whether size/aspect difference isn't too great
-	diff_aspect = abs(float(w)/h - float(image.width)/image.height)
+	aspects = float(w)/h, float(image.width)/image.height
+	diff_aspect = abs(aspects[0] - aspects[1])
 	diff_size = float(image.width * image.height) / (w*h)
 	if diff_aspect > max_aspect_diff or diff_size < 1.0/max_smaller_diff:
-		pdb.gimp_message( 'Aspect diff: {:.2f} (max: {:.2f}), size diff: {:.2f} (min: {:.2f})'\
+		pdb.gimp_message( 'Aspect diff: {0:.2f} (max: {1:.2f}), size diff: {2:.2f} (min: {3:.2f})'\
 			.format(diff_aspect, max_aspect_diff, diff_size, 1.0/max_smaller_diff) )
 		pdb.gimp_message('WPS-ERR:next')
 		return
@@ -94,7 +96,7 @@ def lqr_wpset(path):
 	## Metadata: image name, data from image parasite tags and/or file mtime
 	meta_base = { 'title': os.path.basename(path),
 		'created': datetime.fromtimestamp(os.stat(path).st_mtime),
-		'original size': '{}x{}'.format(*op.attrgetter('width', 'height')(image)) }
+		'original size': '{0}x{1}'.format(*op.attrgetter('width', 'height')(image)) }
 	meta = process_tags(path)\
 		if set(image.parasite_list())\
 			.intersection(['icc-profile', 'jpeg-settings',
@@ -105,17 +107,27 @@ def lqr_wpset(path):
 		except IndexError: continue
 		else:
 			if label in meta: # try to use tags whenever possible
-				try: meta[label] = '{} (tag)'.format(conv(meta[label]))
-				except: meta[label] = '{} (raw tag)'.format(meta[label])
+				try: meta[label] = '{0} (tag)'.format(conv(meta[label]))
+				except: meta[label] = '{0} (raw tag)'.format(meta[label])
 			else:
-				try: meta_base[label] = '{}'.format(conv(meta_base.get(label)))
+				try: meta_base[label] = '{0}'.format(conv(meta_base.get(label)))
 				except:
 					if label in meta_base:
-						meta_base[label] = '{} (raw)'.format(meta_base[label])
+						meta_base[label] = '{0} (raw)'.format(meta_base[label])
 	meta_base.update(meta)
 	meta = meta_base
 
-	## All but the first 4 parameters are defaults, taken from batch-gimp-lqr.scm
+	## Rescaling
+	# pre-LQR rescaling, preserving aspect
+	# improves quality and saves a lot of jiffies
+	if diff_size > min_prescale_diff:
+		new_size = map( lambda x: round(x, 0),
+			(image.width - (image.height - h) * aspects[1], h)\
+			if aspects[1] > aspects[0] else\
+			(w, image.height - (image.width - w) / aspects[0]) )
+		pdb.gimp_image_scale_full( image,
+			new_size[0], new_size[1], INTERPOLATION_CUBIC )
+	# all but the first 4 parameters are defaults, taken from batch-gimp-lqr.scm
 	pdb.plug_in_lqr( image, layer_image, w, h,
 		0, 1000, 0, 1000, 0, 0, 1, 150, 1, 1, 0, 0, 3, 0, 0, 0, 0, 1, '', '', '', '' )
 
