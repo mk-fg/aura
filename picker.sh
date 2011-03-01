@@ -22,30 +22,32 @@ pid="$wps_dir"/picker.pid
 action=
 while [[ -n "$1" ]]; do
 	case "$1" in
+		-d|--daemonize) action=daemonize ;;
 		-n|--next)
-			action=true
+			action=break
 			pkill -HUP -F "$pid" ;;
 		-b|--blacklist)
-			action=true
+			action=break
 			echo "$(cat "$log_curr")" >>"$blacklist" ;;
 		-bn|-nb)
-			action=true
+			action=break
 			echo "$(cat "$log_curr")" >>"$blacklist"
 			pkill -HUP -F "$pid" ;;
 		-k|--kill)
-			action=true
+			action=break
 			pkill -F "$pid" ;;
 		-h|--help)
-			action=true
+			action=break
 			cat <<EOF
 Usage:
-	$(basename "$0") paths...
+	$(basename "$0") [ -d | --daemonize ] paths...
 	$(basename "$0") [ -n | --next ] [ -b | --blacklist ]
 	$(basename "$0") [ -k | --kill ]
 	$(basename "$0") [ -h | --help ]
 
 Set background, randomly selected from the specified paths, and change
 it every ${interval}s afterwards.
+Optional --daemonize flag starts instance in the background.
 
 Some options can be given instead of paths to control already-running
 instance:
@@ -62,7 +64,7 @@ EOF
 	esac
 	shift
 done
-[[ -n "$action" ]] && exit 0
+[[ "$action" = break ]] && exit 0
 
 
 ## Pre-start sanity checks
@@ -77,7 +79,14 @@ if [[ ${#bg_dirs[@]} -eq 0 ]]; then
 fi
 mkdir -p "$wps_dir"
 [[ ! -e "$blacklist" ]] && touch "$blacklist"
+
+if [[ "$action" = daemonize ]]; then
+	setsid "$0" "$@" &
+	disown
+	exit 0
+fi
 [[ $(ps -o 'pgid=' $$) -ne $$ ]] && exec setsid "$0" "$@"
+
 echo $$ >"$pid"
 
 
