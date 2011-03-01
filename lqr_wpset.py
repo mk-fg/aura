@@ -23,7 +23,7 @@ __description__ = 'LQR-rescale image to desktop size and set as a background.'
 
 max_aspect_diff = 0.5 # 16/9 - 4/3 = 0.444
 max_smaller_diff = 2 # don't process images N times smaller by area (w*h)
-min_prescale_diff = 0.3 # rescale larger/smaller images preserving aspect, then with lqr
+min_prescale_diff = 0.3 # use cubic on larger images (preserving aspect), then lqr
 label_offset = 10, 10
 label_colors = [0]*3, [255]*3, (255, 0, 0),\
 	(0, 255, 0), (0, 0, 255), (255, 255, 0), (0, 255, 255) # most contrast one will be chosen

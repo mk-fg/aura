@@ -2,8 +2,6 @@
 set +m
 
 ## Options
-bg_dirs=( "$@" )
-
 interval=$(( 3 * 3600 )) # 3h
 recheck=$(( 3600 )) # 1h
 activity_timeout=$(( 30 * 60 )) # 30min
@@ -20,9 +18,11 @@ pid="$wps_dir"/picker.pid
 
 ## Oneshot actions
 action=
+no_fork=
 while [[ -n "$1" ]]; do
 	case "$1" in
-		-d|--daemonize) action=daemonize ;;
+		-d|--daemon) action=daemon ;;
+		--no-fork) no_fork=true ;;
 		-n|--next)
 			action=break
 			pkill -HUP -F "$pid" ;;
@@ -40,17 +40,17 @@ while [[ -n "$1" ]]; do
 			action=break
 			cat <<EOF
 Usage:
-	$(basename "$0") [ -d | --daemonize ] paths...
-	$(basename "$0") [ -n | --next ] [ -b | --blacklist ]
-	$(basename "$0") [ -k | --kill ]
-	$(basename "$0") [ -h | --help ]
+  $(basename "$0") paths...
+  $(basename "$0") ( -d | --daemon ) [ --no-fork ] paths...
+  $(basename "$0") [ -n | --next ] [ -b | --blacklist ] [ -k | --kill ] [ -h | --help ]
 
-Set background, randomly selected from the specified paths, and change
-it every ${interval}s afterwards.
-Optional --daemonize flag starts instance in the background.
+Set background image, randomly selected from the specified paths.
+
+Optional --daemon flag starts instance in the background (unless --no-fork is
+also specified), and picks a new image every ${interval}s afterwards.
 
 Some options can be given instead of paths to control already-running
-instance:
+instance (started with --daemon flag):
   --next       cycle to then next background immediately.
   --blacklist  add current background to blacklist (skip it from now on).
   --kill       stop currently running instance.
@@ -74,6 +74,7 @@ if [[ -n "$pid_instance" ]]; then
 	echo >&2 "Detected already running instance (pid: $pid_instance)"
 	exit 0
 fi
+bg_dirs=( "$@" )
 if [[ ${#bg_dirs[@]} -eq 0 ]]; then
 	echo >&2 "Error: no bg paths specified"
 	exit 1
@@ -81,7 +82,7 @@ fi
 mkdir -p "$wps_dir"
 [[ ! -e "$blacklist" ]] && touch "$blacklist"
 
-if [[ "$action" = daemonize ]]; then
+if [[ "$action" = daemon && -z "$no_fork" ]]; then
 	setsid "$0" "$@" &
 	disown
 	exit 0
@@ -93,6 +94,7 @@ echo $$ >"$pid"
 
 ## Interruptable (by signals) sleep function hack
 sleep_int() {
+	[[ "$action" != daemon ]] && break
 	sleep "$1" &
 	echo $! >"$pid"
 	wait $! &>/dev/null
@@ -105,10 +107,10 @@ sleep_int() {
 ## Main loop
 bg_list_ts=0
 bg_count=0
+bg_used=0
 
 trap : HUP # "snap outta sleep" signal
-trap "exit 0" TERM
-trap "trap : term; pkill -g 0; exit 1" EXIT # cleanup of backgrounded processes
+trap "trap 'exit 0' TERM; pkill -g 0" EXIT # cleanup of backgrounded processes
 
 while :; do
 	# Just sleep if there's no activity
@@ -118,15 +120,20 @@ while :; do
 		continue
 	fi
 
-	# Update bg_list array on dirs' mtime changes
-	mtime_update=
+	# Update bg_list array on dirs' mtime changes or when it gets empty
+	bg_list_update=
+	if [[ "$bg_used" -eq "$bg_count" ]]; then
+		bg_used=0
+		bg_list_update=true
+	fi
+	[[ -z "$bg_list_update" ]] &&\
 	for dir in "${bg_dirs[@]}"; do
 		if [[ "$(stat --printf=%Y "$dir")" -gt "$bg_list_ts" ]]; then
-			mtime_update=true
+			bg_list_update=true
 			break
 		fi
 	done
-	if [[ -n "$mtime_update" ]]; then
+	if [[ -n "$bg_list_update" ]]; then
 		readarray -t bg_list < <(find "${bg_dirs[@]}" -type f \( -name '*.jpg' -o -name '*.png' \))
 		bg_count="${#bg_list[@]}"
 	fi
@@ -139,13 +146,18 @@ while :; do
 	# bg update
 	ts="$(date --rfc-3339=seconds)"
 	err=next
-	while [[ "$err" = next ]]; do
+	while [[ "$err" = next && "$bg_count" -gt "$bg_used" ]]; do
 		# Random bg selection
-		(( bg_n=RANDOM%bg_count ))
+		(( bg_n=RANDOM%(bg_count+1) ))
 		bg="${bg_list[$bg_n]}"
+		[[ -z "$bg" ]] && continue # not particulary good idea
+
+		# Pop selected bg from array
+		unset bg_list[$bg_n]
+		(( bg_used += 1 ))
 
 		# Blacklist check
-		grep -qP "^(.*/)?$(basename $bg)$" "$blacklist" && continue
+		grep -qP "^(.*/)?$(basename "$bg")$" "$blacklist" && continue
 
 		# Actual bg setting
 		echo "--- ${ts}: ${bg}" >>"$log_err"
