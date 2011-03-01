@@ -14,45 +14,72 @@ wps_dir=~/.wps
 blacklist="$wps_dir"/blacklist
 log_err="$wps_dir"/picker.log
 log_hist="$wps_dir"/history.log
+log_curr="$wps_dir"/current
 pid="$wps_dir"/picker.pid
 
 
+## Oneshot actions
+action=
+while [[ -n "$1" ]]; do
+	case "$1" in
+		-n|--next)
+			action=true
+			pkill -HUP -F "$pid" ;;
+		-b|--blacklist)
+			action=true
+			echo "$(cat "$log_curr")" >>"$blacklist" ;;
+		-bn|-nb)
+			action=true
+			echo "$(cat "$log_curr")" >>"$blacklist"
+			pkill -HUP -F "$pid" ;;
+		-k|--kill)
+			action=true
+			pkill -F "$pid" ;;
+		-h|--help)
+			action=true
+			cat <<EOF
+Usage:
+	$(basename "$0") paths...
+	$(basename "$0") [ -n | --next ] [ -b | --blacklist ]
+	$(basename "$0") [ -k | --kill ]
+	$(basename "$0") [ -h | --help ]
+
+Set background, randomly selected from the specified paths, and change
+it every ${interval}s afterwards.
+
+Some options can be given instead of paths to control already-running
+instance:
+  --next       cycle to then next background immediately.
+  --blacklist  add current background to blacklist (skip it from now on).
+  --kill       stop currently running instance.
+  --help       this text
+
+Various paths and parameters are specified in the beginning of this script.
+
+EOF
+			;;
+		*) break ;;
+	esac
+	shift
+done
+[[ -n "$action" ]] && exit 0
+
+
 ## Pre-start sanity checks
+pid_instance=$(pgrep -F "$pid")
+if [[ -n "$pid_instance" ]]; then
+	echo >&2 "Detected already running instance (pid: $pid_instance)"
+	exit 0
+fi
 if [[ ${#bg_dirs[@]} -eq 0 ]]; then
 	echo >&2 "Error: no bg paths specified"
 	exit 1
 fi
 mkdir -p "$wps_dir"
 [[ ! -e "$blacklist" ]] && touch "$blacklist"
+[[ $(ps -o 'pgid=' $$) -ne $$ ]] && exec setsid "$0" "$@"
 echo $$ >"$pid"
 
-
-## Function to select bg from bg_list and rescale/set it
-bg_cycle() {
-	[[ "$bg_count" -eq 0 ]] && return 1 # no bgz to choose from
-
-	err=next
-	while [[ "$err" = next ]]; do
-		# Random bg selection
-		(( bg_n=RANDOM%bg_count ))
-		bg="${bg_list[$bg_n]}"
-
-		# Blacklist check
-		grep -qP "^(.*/)?$(basename $bg)$" "$blacklist" && continue
-
-		# Actual bg setting
-		echo "--- ${ts}: ${bg}" >>"$log_err"
-		err=$($gimp_cmd -ib '(begin
-				(catch (gimp-message "WPS-ERR:gimp_error")
-					(gimp-message-set-handler ERROR-CONSOLE)
-					(python-fu-lqr-wpset RUN-NONINTERACTIVE "'"${bg}"'"))
-				(gimp-quit TRUE))' 2>&1 1>/dev/null |
-			tee -a "$log_err" | grep -oP 'WPS-ERR:\S+')
-		err="${err#*:}"
-	done
-
-	[[ -n "$err" ]] && return 1 || return 0
-}
 
 ## Interruptable (by signals) sleep function hack
 sleep_int() {
@@ -99,16 +126,35 @@ while :; do
 
 	# bg update
 	ts="$(date --rfc-3339=seconds)"
-	bg_cycle
+	err=next
+	while [[ "$err" = next ]]; do
+		# Random bg selection
+		(( bg_n=RANDOM%bg_count ))
+		bg="${bg_list[$bg_n]}"
+
+		# Blacklist check
+		grep -qP "^(.*/)?$(basename $bg)$" "$blacklist" && continue
+
+		# Actual bg setting
+		echo "--- ${ts}: ${bg}" >>"$log_err"
+		err=$($gimp_cmd -ib '(begin
+				(catch (gimp-message "WPS-ERR:gimp_error")
+					(gimp-message-set-handler ERROR-CONSOLE)
+					(python-fu-lqr-wpset RUN-NONINTERACTIVE "'"${bg}"'"))
+				(gimp-quit TRUE))' 2>&1 1>/dev/null |
+			tee -a "$log_err" | grep -oP 'WPS-ERR:\S+')
+		err="${err#*:}"
+	done
 
 	# Check for unexpected errors
-	if [[ $? -gt 0 ]]; then
+	if [[ -n "$err" ]]; then
 		echo >&2 "Error: Failed setting bg, see log (${log_err}) for details"
 		sleep_int "$recheck"
 		continue
 	fi
 
-	# History entry and main cycle delay
+	# History/current entry update and main cycle delay
 	echo "${ts} (id: ${bg_n}): ${bg}" >>"$log_hist"
+	echo "$(basename "${bg}")" >"$log_curr"
 	sleep_int "$interval"
 done
