@@ -1,5 +1,4 @@
 #!/bin/bash
-set +m
 
 ## Options
 interval=$(( 3 * 3600 )) # 3h
@@ -16,7 +15,7 @@ log_curr="$wps_dir"/current
 pid="$wps_dir"/picker.pid
 
 
-## Oneshot actions
+## Commanline processing
 action=
 no_fork=
 while [[ -n "$1" ]]; do
@@ -109,12 +108,14 @@ bg_list_ts=0
 bg_count=0
 bg_used=0
 
+set +m
 trap : HUP # "snap outta sleep" signal
 trap "trap 'exit 0' TERM; pkill -g 0" EXIT # cleanup of backgrounded processes
 
 while :; do
 	# Just sleep if there's no activity
-	idle_time="$(( $(xprintidle) / 1000 ))"
+	idle_time=$(xprintidle 2>/dev/null)
+	idle_time="$(( ${idle_time:-0} / 1000 ))"
 	if [[ "$idle_time" -gt "$activity_timeout" ]]; then
 		sleep_int "$recheck"
 		continue
