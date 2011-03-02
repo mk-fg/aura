@@ -1,0 +1,248 @@
+<html>
+
+
+<head>
+<style>
+	body { width: 1024; margin: auto; }
+	pre { border: 1px silver inset; padding: .5em; }
+	img { margin: .3em; }
+	img.standalone { width: 600px; }
+	img.inline { float: left; width: 400px; }
+	img.inline.small { width: 200px; }
+	img.inline.misc { border: none;  width: 20px; }
+	div, p { clear: both; }
+	a.fullview { color: transparent; }
+	#loader img { margin: 0; }
+</style>
+
+<script src="jquery.js" type="text/javascript"></script>
+<script src="jquery.flyout.js" type="text/javascript"></script>
+<script src="jquery.easing.js" type="text/javascript"></script>
+<script>
+$(document).ready(function() {
+	$('img').each(function (idx, el) {
+		el = $(el)
+		el.wrap('<a class="fullview" href="'+ el.attr('src') + '" />') })
+	$('a.fullview').flyout({
+		inOpacity: 0,
+		inSpeed: 1000 })
+})
+</script>
+
+</head>
+
+
+<body>
+
+<h1>Aura - clever desktop background setter tool for art appreciators</h1>
+<p>"...because no other tool seem to care"</p>
+
+
+<h2>Contents</h2>
+<ul>
+<li><a href="#summary">Summary</a></li>
+<li><a href="#how_it_works">How it works</a></li>
+<li><a href="#installation">Installation</a></li>
+<li><a href="#usage">Usage</a></li>
+<li><a href="#copying">Copying</a></li>
+</ul>
+
+
+<h2 id="summary">Summary</h2>
+
+<p>"aura" tool is a desktop (X root window) background setter, capable of:
+<ul>
+<li>picking image randomly from specified paths;</li>
+<li>skipping too small images and images with too different aspect rate;</li>
+<li>rescaling it in a clever ways (crop solid margins, resize with cubic, then <a href="http://liquidrescale.wikidot.com/en:examples">liquid rescale algorithm</a>) to fit the desktop with as little quality loss as possible;</li>
+<li>labelling images (that is, rendering the label in the corner) using embedded tags;</li>
+<li>daemonizing to pick new image on a time-basis or when triggered (by SIGHUP or cli);</li>
+<li>keeping track of used images, blacklisting.</li>
+</ul>
+</p>
+
+<p>Intended usage is to point it to the path(s) with random image collection(s) and let it adjust any suitable ones to the current screen size. It has no gui and no capabilities to dowload images from anywhere.</p>
+
+
+<h2 id="how_it_works">How it works</h2>
+
+<p>Main process is actually very simple, to the extent that it's written in bash (which has negligible memory footprint), but the main magic is in the image processing part.</p>
+<p>All the wallpaper-setters I've seen doesn't seem to consider this part important enough, focusing instead on providing GUI and image fetching mechanisms, but if you have a local collection and don't need guis, they're usually not much better than <a href="http://derf.homelinux.org/projects/feh/">feh</a> or ten-liner python script.</p>
+
+<p>To see what I mean, let's take a simple case of a laptop screen (1366x768) and an image (960x660):</p>
+<div class="demo">
+<img class="standalone" src="D_I_E__with_screen.jpg" />
+</div>
+
+<p>As you can see, image and screen aspect ratios don't match and the screen resolution is totally different (larger).</p>
+<p>What all setters seem to do is either resize the image, crop it, or a combination of these.</p>
+<p>Results, in this case, as you can probably guess, are not particulary good:</p>
+
+<div class="demo">
+<img class="inline small" src="D_I_E.jpg" />
+<img class="inline misc" src="result_arrow.png" />
+<img class="inline small" src="D_I_E__dumb_scale.jpg" />
+<img class="inline small" src="D_I_E__with_screen.jpg" />
+<img class="inline small" src="D_I_E__dumb_scale_crop.jpg" />
+</div>
+
+<div class="demo">
+<img class="inline small" src="AIR_IN_KYOTO.jpg" />
+<img class="inline misc" src="result_arrow.png" />
+<img class="inline small" src="AIR_IN_KYOTO__dumb_scale.jpg" />
+<img class="inline small" src="AIR_IN_KYOTO__dumb_crop.jpg" />
+<img class="inline small" src="AIR_IN_KYOTO__dumb_scale_crop.jpg" />
+</div>
+
+<p>Each of the above has obvious flaws - it's either cropped, scaled in a weird way and/or has solid margins.</p>
+
+<p>What this tool produces (automatically, from any random image, without any interaction), is this:</p>
+
+<div class="demo">
+<img class="inline" src="D_I_E.jpg" />
+<img class="inline misc" src="result_arrow.png" />
+<img class="inline" src="D_I_E__aura.jpg" />
+</div>
+
+<div class="demo">
+<img class="inline" src="AIR_IN_KYOTO.jpg" />
+<img class="inline misc" src="result_arrow.png" />
+<img class="inline" src="AIR_IN_KYOTO__aura.jpg" />
+</div>
+
+<p>Click the images to see detailed versions, and note that details and their proportions are magically preserved by the grace of <a href="http://liblqr.wikidot.com/">liblqr</a> (<a href="http://liquidrescale.wikidot.com/en:examples">liquid rescale</a> implementation).</p>
+
+<p>To see all the intermediate steps in more detail, let's get back to image one:</p>
+<img class="standalone" src="D_I_E.jpg" />
+
+</p>Obviously, image can be at least cropped out of solid margins (yet none of existing tools seem to care), but if you'll load it into GIMP and use autocrop, it won't really change anything, because (surprise!) margins are not solid at all: they usually have the noise or some minor texture, as a matter of fact, so you'd have to do the fuzzy-solid cropping, at least.</p>
+<p>And the tool does that, no problem. Actual technique I've used was to create a simple mask-layer, adjust it's contrast and use solid-crop feature to determine the cropped margins, then just use the same values on the untouched layer.</p>
+<img class="standalone" src="D_I_E__crop.jpg" />
+
+<p>It certainly is better, but still in no way fits nicely to 16:9 screen with larger resolution, and this is the point where LQR (liquid resizing aka seam carving) algorithm comes into play.</p>
+<p>LQR drops/scales the most featureless parts of an image, so all the important parts could be left untouched.</p>
+<p>I highly recommend to spend a minute or two to skim over this <a href="http://www.youtube.com/watch?v=vIFCV2spKtg">YouTube video</a>, showing what the algorithm is capable of and explaining how it does that. You'll probably never look at the usual Cubic and Sinc the same way again ;)</p>
+<img class="standalone" src="D_I_E__lqr.jpg" />
+
+<p>As you can see, black leftovers at the bottom magically disappeared, leaving the original label intact, which is a superior result than can be produced with simple matrix interpolations.</p>
+
+<p>Since most of my images come from the sites like <a href="http://www.deviantart.com/">DeviantArt</a> (I actually aggregate interesting (to me) channels from there to this feed), which make it easy to track authors, most time when I see really cool artwork, I like to know who made it and if there's more of such awesomeness (and there usually is!).</p>
+<p>So a filename is a nice thing to see, at least. Author name could be there, you can maybe look up an image by it, if it really corresponds to image title in an obvious way.</p>
+<p>But most images also come with an embedded tags, like <a href="http://en.wikipedia.org/wiki/EXIF">EXIF</a> or <a href="http://en.wikipedia.org/wiki/Extensible_Metadata_Platform">XMP</a>, and all the info like author and title is there in the sane state, so these are used in the label if present in a file, overriding filename/mtime defaults:</p>
+<img class="standalone" src="D_I_E__label.jpg" />
+
+<p>Note that label color is a bit of PITA and not quite easy to get right reliably.<p>
+<p>Tool calculates label size, takes the average color in the area where it'll be rendered and picks the most different (<a href="http://en.wikipedia.org/wiki/Color_difference#CIEDE2000">Delta E, CIEDE2000 algorithm</a>) color from the predefined set of a brightest ones.</p>
+
+<p>So far, results don't make me flinch in disgust at horribly-mangled images, but if there's a room for improvement, guess I'll spot it over time, and will certainly appreciate any suggestions, since I don't really work with graphics at all, and have no idea of even the basic concepts every artist and designer are probably aware of.</p>
+
+
+<h2 id="installation">Installation</h2>
+
+<p>While "aura" script is pure bash, all image manipulations are performed from a python script using gimp's python-fu.</p>
+<p>Thus, some stuff must be installed for the tool to work:</p>
+
+<ul>
+<li><a href="http://gnu.org/software/bash/">bash</a></li>
+<li><a href="http://python.org/">python (2.6 or 2.7, not 3.X)</a></li>
+<li><a href="http://www.pygtk.org/">pygtk (2.X series, but maybe 3.X will work as well)</a></li>
+<li><a href="http://gimp.org/">gimp (2.6 or later, with python plugins support)</a></li>
+<li><a href="http://liquidrescale.wikidot.com/">gimp-lqr-plugin</a></li>
+</ul>
+
+<p>Everything aside from gimp-lqr-plugin is probably present in any decent desktop linux system.</p>
+
+<p>Optional stuff (will be used if available):</p>
+
+<ul>
+<li><a href="http://www.dtek.chalmers.se/~henoch/text/xprintidle.html">xprintidle tool</a> - to cycle images only when system is not idle (1h threshold, by default).</li>
+<li><a href="http://tilloy.net/dev/pyexiv2/">pyexiv2 python module</a> - to use information from EXIF/XMP/IDC tags in labels.</li>
+<li><a href="http://code.google.com/p/python-colormath/">colormath python module</a> - to pick the most contrast color for label using CIEDE2000 (simplier algorithm will be used otherwise).</li>
+</ul>
+
+<p>These are probably best to get using the package manager, but colormath can be installed with a simple "easy_install colormath" or "pip colormath" command.</p>
+
+<p>Actual "installation" is needed for the gimp plugin (lqr_wpset.py), which should be put into one of gimp plugin directories, like "~/.gimp-2.6/plug-ins/" and be marked as executable. Here's what I mean:</p>
+
+<pre>
+mkdir -p ~/.gimp-2.6/plug-ins/
+cp lqr_wpset.py ~/.gimp-2.6/plug-ins/
+chmod +x ~/.gimp-2.6/plug-ins/lqr_wpset.py
+</pre>
+
+<p>Bash script itself ("aura") will work from any path, just run it.</p>
+
+
+<h2 id="usage">Usage</h2>
+
+<p>To quote the command itself:</p>
+<pre>
+fraggod@sacrilege:-hatch/aura% ./aura.sh -h
+Usage:
+  aura.sh paths...
+  aura.sh ( -d | --daemon ) [ --no-fork ] paths...
+  aura.sh [ -n | --next ] [ -b | --blacklist ] [ -k | --kill ] [ -h | --help ]
+
+Set background image, randomly selected from the specified paths.
+
+Optional --daemon flag starts instance in the background (unless --no-fork is
+also specified), and picks a new image every 10800s afterwards.
+
+Some options can be given instead of paths to control already-running
+instance (started with --daemon flag):
+  --next       cycle to then next background immediately.
+  --blacklist  add current background to blacklist (skip it from now on).
+  --kill       stop currently running instance.
+  --help       this text
+
+Various paths and parameters are specified in the beginning of this script.
+</pre>
+
+<p>...and mentioned "beginning of this script" is:</p>
+<pre>
+fraggod@sacrilege:-hatch/aura% h -15 aura.sh
+#!/bin/bash
+
+## Options
+interval=$(( 3 * 3600 )) # 3h
+recheck=$(( 3600 )) # 1h
+activity_timeout=$(( 30 * 60 )) # 30min
+
+gimp_cmd="nice ionice -c3 gimp"
+
+wps_dir=~/.aura
+blacklist="$wps_dir"/blacklist
+log_err="$wps_dir"/picker.log
+log_hist="$wps_dir"/history.log
+log_curr="$wps_dir"/current
+pid="$wps_dir"/picker.pid
+</pre>
+
+<p>Also, see the beginning of a python plugin (lqr_wpset) for some image processing options:</p>
+
+<pre>
+max_aspect_diff = 0.5 # 16/9 - 4/3 = 0.444
+max_smaller_diff = 2 # don't process images N times smaller by area (w*h)
+min_prescale_diff = 0.3 # use cubic on larger images (preserving aspect), then lqr
+label_offset = 10, 10
+label_colors = [0]*3, [255]*3, (255, 0, 0),\
+	(0, 255, 0), (0, 0, 255), (255, 255, 0), (0, 255, 255) # most contrast one will be chosen
+font_filename = 'URW Palladio L Medium', 16
+font_timestamp = 'URW Palladio L Medium', 11
+tmp_dir = '/tmp'
+</pre>
+
+<p>Not that there should be any need to change this stuff, but if there is - it's just a shell.</p>
+
+<p>I just put something like "aura -d ~/media/picz" into my ~/.xinitrc.</p>
+
+
+
+<h2 id="copying">Copying</h2>
+
+<p>Artworks on this page (<a href="http://ukitakumuki.deviantart.com/art/D-I-E-5905104">"D I E"</a> and <a href="http://ukitakumuki.deviantart.com/art/AIR-IN-KYOTO-10213909">"AIR IN KYOTO"</a> by Kai Lim) is a subject to a copyright and used with author's permission.</p>
+
+<p>Code is a public domain, feel free to hack and reuse it as you see fit.</p>
+
+
+</body>
