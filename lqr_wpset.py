@@ -22,7 +22,7 @@ __blurb__ = 'LQRify to desktop'
 __description__ = 'LQR-rescale image to desktop size and set as a background.'
 
 max_aspect_diff = 0.5 # 16/9 - 4/3 = 0.444
-max_smaller_diff = 2 # don't process images N times smaller by area (w*h)
+max_smaller_diff = 3 # don't process images N times smaller by area (w*h)
 min_prescale_diff = 0.3 # use cubic on larger images (preserving aspect), then lqr
 label_offset = 10, 10
 label_colors = [0]*3, [255]*3, (255, 0, 0),\
@@ -66,17 +66,31 @@ def process_tags(path):
 				else: break
 	return meta
 
+def pick_contrast_color(bg_color):
+	try: from colormath.color_objects import RGBColor
+	except ImportError: # use simple sum(abs(R1-R2), ...) algorithm
+		color_diffs = dict((sum( abs(c1 - c2) for c1,c2 in
+			it.izip(bg_color, color) ), color) for color in label_colors)
+	else: # CIEDE2000 algorithm, if available (see wiki)
+		color_bg_diff = RGBColor(*bg_color).delta_e
+		color_diffs = dict(
+			(color_bg_diff(RGBColor(*color)), color)
+			for color in label_colors )
+	return tuple(color_diffs[max(color_diffs)])
+
+
 def lqr_wpset(path):
 	image = pdb.gimp_file_load(path, path)
 	layer_image = image.active_layer
 	w, h = gtk.gdk.screen_width(), gtk.gdk.screen_height()
+	bak_colors = gimp.get_foreground(), gimp.get_background()
 
 	## Crop black margins
 	# ...by adding a layer, making it more contrast (to drop noise on margins),
 	#  then cropping the layer and image to the produced layer size
 	layer_guide = image.active_layer.copy()
 	image.add_layer(layer_guide, 1)
-	pdb.gimp_brightness_contrast(layer_guide, -20, 20)
+	pdb.gimp_brightness_contrast(layer_guide, -30, 30)
 	pdb.plug_in_autocrop_layer(image, layer_guide) # should crop margins on layer
 	pdb.gimp_image_crop( image,
 		layer_guide.width, layer_guide.height,
@@ -96,7 +110,7 @@ def lqr_wpset(path):
 	## Metadata: image name, data from image parasite tags and/or file mtime
 	meta_base = { 'title': os.path.basename(path),
 		'created': datetime.fromtimestamp(os.stat(path).st_mtime),
-		'original size': '{0}x{1}'.format(*op.attrgetter('width', 'height')(image)) }
+		'original size': '{0} x {1}'.format(*op.attrgetter('width', 'height')(image)) }
 	meta = process_tags(path)\
 		if set(image.parasite_list())\
 			.intersection(['icc-profile', 'jpeg-settings',
@@ -138,16 +152,21 @@ def lqr_wpset(path):
 		label_offset[0], label_offset[1], meta.pop('title'),
 		-1, True, font_filename[1], PIXELS, font_filename[0] )
 	pdb.gimp_floating_sel_to_layer(label_title)
-	# timestamps
+	# tags, ordered according to label_tags
+	meta = list( (label, meta.pop(label))
+		for label in it.imap(op.itemgetter(0), label_tags)
+		if label in meta ) + list(meta.viewitems())
 	offset_layer = 0.5 * font_timestamp[1]
 	offset_y = label_title.offsets[1] + label_title.height + offset_layer
 	label_keys = pdb.gimp_text_fontname( image, layer_image,
-			label_title.offsets[1] + 3 * font_timestamp[1], offset_y,
-			'\n'.join(meta.viewkeys()), -1, True, font_timestamp[1], PIXELS, font_timestamp[0] )
+		label_title.offsets[1] + 3 * font_timestamp[1], offset_y,
+		'\n'.join(it.imap(op.itemgetter(0), meta)),
+		-1, True, font_timestamp[1], PIXELS, font_timestamp[0] )
 	pdb.gimp_floating_sel_to_layer(label_keys)
 	label_vals = pdb.gimp_text_fontname( image, layer_image,
-			label_keys.offsets[0] + label_keys.width + offset_layer, offset_y,
-			'\n'.join(meta.viewvalues()), -1, True, font_timestamp[1], PIXELS, font_timestamp[0] )
+		label_keys.offsets[0] + label_keys.width + offset_layer, offset_y,
+		'\n'.join(it.imap(op.itemgetter(1), meta)),
+		-1, True, font_timestamp[1], PIXELS, font_timestamp[0] )
 	pdb.gimp_floating_sel_to_layer(label_vals)
 	label_layers = label_title, label_keys, label_vals
 
@@ -165,18 +184,19 @@ def lqr_wpset(path):
 	label_bg_color = tuple(
 		int(round(pdb.gimp_histogram(layer_image, channel, 0, 255)[0], 0)) # mean intensity value
 		for channel in [HISTOGRAM_RED, HISTOGRAM_GREEN, HISTOGRAM_BLUE] )
-	try: from colormath.color_objects import RGBColor
-	except ImportError: # use simple sum(abs(R1-R2), ...) algorithm
-		color_diffs = dict((sum( abs(c1 - c2) for c1,c2 in
-			it.izip(label_bg_color, color) ), color) for color in label_colors)
-	else: # CIEDE2000 algorithm, if available (see wiki)
-		color_bg_diff = RGBColor(*label_bg_color).delta_e
-		color_diffs = dict(
-			(color_bg_diff(RGBColor(*color)), color)
-			for color in label_colors )
-	color = tuple(color_diffs[max(color_diffs)])
-	# set the picked color for all the label layers, meld all the layers together
-	for layer in label_layers: pdb.gimp_text_layer_set_color(layer, color)
+	label_fg_color = pick_contrast_color(label_bg_color)
+	gimp.set_foreground(label_fg_color), gimp.set_background(label_bg_color)
+	# set the picked color for all label layers, draw outlines
+	label_outline = image.new_layer( 'label_outline',
+		opacity=30, pos=image.layers.index(layer_image) )
+	for layer in label_layers:
+		pdb.gimp_text_layer_set_color(layer, label_fg_color)
+		path = pdb.gimp_vectors_new_from_text_layer(image, layer)
+		pdb.gimp_image_add_vectors(image, path, -1)
+		pdb.gimp_vectors_to_selection(path, CHANNEL_OP_REPLACE, True, False, 0, 0)
+		pdb.gimp_selection_grow(image, 1), pdb.gimp_selection_border(image, 1)
+		pdb.gimp_edit_fill(label_outline, BACKGROUND_FILL)
+	# meld all the layers together
 	image.flatten()
 
 	## Save image to a temporary file and load it into a gdk pixbuffer
@@ -193,6 +213,9 @@ def lqr_wpset(path):
 	win.set_back_pixmap(pm, False)
 	win.clear()
 	pb.render_to_drawable(win, gtk.gdk.GC(win), 0, 0, 0, 0, -1, -1)
+
+	## Restore gimp state
+	gimp.set_foreground(bak_colors[0]), gimp.set_background(bak_colors[1])
 
 
 ### Extra bulky metadata
