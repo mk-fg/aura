@@ -18,6 +18,7 @@ pid="$wps_dir"/picker.pid
 ## Commanline processing
 action=
 no_fork=
+reexec=
 while [[ -n "$1" ]]; do
 	case "$1" in
 		-d|--daemon) action=daemon ;;
@@ -35,6 +36,9 @@ while [[ -n "$1" ]]; do
 		-k|--kill)
 			action=break
 			pkill -F "$pid" ;;
+		-x)
+			reexec=true
+			action=daemon ;;
 		-h|--help)
 			action=break
 			cat <<EOF
@@ -81,12 +85,14 @@ fi
 mkdir -p "$wps_dir"
 [[ ! -e "$blacklist" ]] && touch "$blacklist"
 
-if [[ "$action" = daemon && -z "$no_fork" ]]; then
-	setsid "$0" "$@" &
-	disown
-	exit 0
+if [[ -z "$reexec" ]]; then
+	if [[ "$action" = daemon && -z "$no_fork" ]]; then
+		setsid "$0" -x "$@" &
+		disown
+		exit 0
+	fi
+	[[ $(ps -o 'pgid=' $$) -ne $$ ]] && exec setsid -x "$0" "$@"
 fi
-[[ $(ps -o 'pgid=' $$) -ne $$ ]] && exec setsid "$0" "$@"
 
 echo $$ >"$pid"
 
