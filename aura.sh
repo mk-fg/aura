@@ -4,6 +4,7 @@
 interval=$(( 3 * 3600 )) # 3h
 recheck=$(( 3600 )) # 1h
 activity_timeout=$(( 30 * 60 )) # 30min
+max_log_size=$(( 1024 * 1024 )) # 1M, current+last files are kept
 
 gimp_cmd="nice ionice -c3 gimp"
 
@@ -108,6 +109,12 @@ sleep_int() {
 	echo $$ >"$pid"
 }
 
+## Log update with rotation
+log() {
+	[[ "$(stat --format=%s "$1")" -gt "$max_log_size" ]] && mv "$1"{,.old}
+	echo "$2" >>"$1"
+}
+
 
 ## Main loop
 bg_list_ts=0
@@ -167,7 +174,7 @@ while :; do
 		grep -qP "^(.*/)?$(basename "$bg")$" "$blacklist" && continue
 
 		# Actual bg setting
-		echo "--- ${ts}: ${bg}" >>"$log_err"
+		log "$log_err" "--- ${ts}: ${bg}"
 		err=$($gimp_cmd -ib '(begin
 				(catch (gimp-message "WPS-ERR:gimp_error")
 					(gimp-message-set-handler ERROR-CONSOLE)
@@ -185,7 +192,7 @@ while :; do
 	fi
 
 	# History/current entry update and main cycle delay
-	echo "${ts} (id: ${bg_n}): ${bg}" >>"$log_hist"
+	log "$log_hist" "${ts} (id: ${bg_n}): ${bg}"
 	echo "$(basename "${bg}")" >"$log_curr"
 	sleep_int "$interval"
 done
