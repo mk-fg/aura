@@ -2,15 +2,23 @@
 
 
 <head>
+
+<title>"Aura" project</title>
+
 <style>
-	body { width: 1024; margin: auto; }
+	body { width: 1000; margin: auto; }
 	pre { border: 1px silver inset; padding: .5em; }
 	img { margin: .3em; }
 	img.standalone { width: 600px; }
 	img.inline { float: left; width: 400px; }
 	img.inline.small { width: 200px; }
 	img.inline.misc { border: none;  width: 20px; }
-	div, p { clear: both; }
+	div, p { clear: left; }
+	hr { clear: both; }
+	.contents { float: right; border: 3px double silver; padding: 0 2em; }
+	.contents ul { padding-left: 1em; }
+	.title { float: left; }
+	p.remark { float: right; margin-top: 0; }
 	a.fullview { color: transparent; }
 	#loader img { margin: 0; }
 </style>
@@ -20,13 +28,9 @@
 <script src="jquery.easing.js" type="text/javascript"></script>
 <script>
 $(document).ready(function() {
-	$('img').each(function (idx, el) {
-		el = $(el)
-		el.wrap('<a class="fullview" href="'+ el.attr('src') + '" />') })
 	$('a.fullview').flyout({
 		inOpacity: 0,
-		inSpeed: 1000 })
-})
+		inSpeed: 1000 }) })
 </script>
 
 </head>
@@ -34,18 +38,24 @@ $(document).ready(function() {
 
 <body>
 
+<div class="title">
 <h1>Aura - clever desktop background setter tool for art appreciators</h1>
-<p>"...because no other tool seem to care"</p>
+<p class="remark">"...because no other tool seem to care"</p>
+</div>
 
+<hr />
 
-<h2>Contents</h2>
-<ul>
-<li><a href="#summary">Summary</a></li>
-<li><a href="#how_it_works">How it works</a></li>
-<li><a href="#installation">Installation</a></li>
-<li><a href="#usage">Usage</a></li>
-<li><a href="#copying">Copying</a></li>
-</ul>
+<div class="contents">
+	<h2>Contents</h2>
+	<ul>
+	<li><a href="#summary">Summary</a></li>
+	<li><a href="#quck_links">Quick links</a></li>
+	<li><a href="#how_it_works">How it works</a></li>
+	<li><a href="#installation">Installation</a></li>
+	<li><a href="#usage">Usage</a></li>
+	<li><a href="#copying">Copying</a></li>
+	</ul>
+</div>
 
 
 <h2 id="summary">Summary</h2>
@@ -64,6 +74,14 @@ $(document).ready(function() {
 <p>Intended usage is to point it to the path(s) with random image collection(s) and let it adjust any suitable ones to the current screen size. It has no gui and no capabilities to dowload images from anywhere.</p>
 
 
+<h2 id="quck_links">Quick links</h2>
+
+<ul>
+<li><a href="http://sf.net/p/desktop-aura/">Sourceforge project page.</a></li>
+<li><a href="http://sf.net/p/desktop-aura/files/">File releases (aka "Downloads").</a></li>
+</ul>
+
+
 <h2 id="how_it_works">How it works</h2>
 
 <p>Main process is actually very simple, to the extent that it's written in bash (which has negligible memory footprint), but the main magic is in the image processing part.</p>
@@ -71,7 +89,7 @@ $(document).ready(function() {
 
 <p>To see what I mean, let's take a simple case of a laptop screen (1366x768) and an image (960x660):</p>
 <div class="demo">
-<img class="standalone" src="D_I_E__with_screen.jpg" />
+<a class="fullview" href="D_I_E__with_screen.jpg"><img class="standalone" src="D_I_E__with_screen__l.jpg" /></a>
 </div>
 
 <p>As you can see, image and screen aspect ratios don't match and the screen resolution is totally different (larger).</p>
@@ -79,19 +97,19 @@ $(document).ready(function() {
 <p>Results, in this case, as you can probably guess, are not particulary good:</p>
 
 <div class="demo">
-<img class="inline small" src="D_I_E.jpg" />
+<a class="fullview" href="D_I_E.jpg"><img class="inline small" src="D_I_E__s.jpg" /></a>
 <img class="inline misc" src="result_arrow.png" />
-<img class="inline small" src="D_I_E__dumb_scale.jpg" />
-<img class="inline small" src="D_I_E__with_screen.jpg" />
-<img class="inline small" src="D_I_E__dumb_scale_crop.jpg" />
+<a class="fullview" href="D_I_E__dumb_scale.jpg"><img class="inline small" src="D_I_E__dumb_scale__s.jpg" /></a>
+<a class="fullview" href="D_I_E__with_screen.jpg"><img class="inline small" src="D_I_E__with_screen__s.jpg" /></a>
+<a class="fullview" href="D_I_E__dumb_scale_crop.jpg"><img class="inline small" src="D_I_E__dumb_scale_crop__s.jpg" /></a>
 </div>
 
 <div class="demo">
-<img class="inline small" src="AIR_IN_KYOTO.jpg" />
+<a class="fullview" href="AIR_IN_KYOTO.jpg"><img class="inline small" src="AIR_IN_KYOTO__s.jpg" /></a>
 <img class="inline misc" src="result_arrow.png" />
-<img class="inline small" src="AIR_IN_KYOTO__dumb_scale.jpg" />
-<img class="inline small" src="AIR_IN_KYOTO__dumb_crop.jpg" />
-<img class="inline small" src="AIR_IN_KYOTO__dumb_scale_crop.jpg" />
+<a class="fullview" href="AIR_IN_KYOTO__dumb_scale.jpg"><img class="inline small" src="AIR_IN_KYOTO__dumb_scale__s.jpg" /></a>
+<a class="fullview" href="AIR_IN_KYOTO__dumb_crop.jpg"><img class="inline small" src="AIR_IN_KYOTO__dumb_crop__s.jpg" /></a>
+<a class="fullview" href="AIR_IN_KYOTO__dumb_scale_crop.jpg"><img class="inline small" src="AIR_IN_KYOTO__dumb_scale_crop__s.jpg" /></a>
 </div>
 
 <p>Each of the above has obvious flaws - it's either cropped, scaled in a weird way and/or has solid margins.</p>
@@ -99,42 +117,42 @@ $(document).ready(function() {
 <p>What this tool produces (automatically, from any random image, without any interaction), is this:</p>
 
 <div class="demo">
-<img class="inline" src="D_I_E.jpg" />
+<a class="fullview" href="D_I_E.jpg"><img class="inline" src="D_I_E__m.jpg" /></a>
 <img class="inline misc" src="result_arrow.png" />
-<img class="inline" src="D_I_E__aura.jpg" />
+<a class="fullview" href="D_I_E__aura.jpg"><img class="inline" src="D_I_E__aura__m.jpg" /></a>
 </div>
 
 <div class="demo">
-<img class="inline" src="AIR_IN_KYOTO.jpg" />
+<a class="fullview" href="AIR_IN_KYOTO.jpg"><img class="inline" src="AIR_IN_KYOTO__m.jpg" /></a>
 <img class="inline misc" src="result_arrow.png" />
-<img class="inline" src="AIR_IN_KYOTO__aura.jpg" />
+<a class="fullview" href="AIR_IN_KYOTO__aura.jpg"><img class="inline" src="AIR_IN_KYOTO__aura__m.jpg" /></a>
 </div>
 
 <p>Click the images to see detailed versions, and note that details and their proportions are magically preserved by the grace of <a href="http://liblqr.wikidot.com/">liblqr</a> (<a href="http://liquidrescale.wikidot.com/en:examples">liquid rescale</a> implementation).</p>
 
 <p>To see all the intermediate steps in more detail, let's get back to image one:</p>
-<img class="standalone" src="D_I_E.jpg" />
+<a class="fullview" href="D_I_E.jpg"><img class="standalone" src="D_I_E__l.jpg" /></a>
 
 </p>Obviously, image can be at least cropped out of solid margins (yet none of existing tools seem to care), but if you'll load it into GIMP and use autocrop, it won't really change anything, because (surprise!) margins are not solid at all: they usually have the noise or some minor texture, as a matter of fact, so you'd have to do the fuzzy-solid cropping, at least.</p>
-<p>And the tool does that, no problem. Actual technique I've used was to create a simple mask-layer, adjust it's contrast and use solid-crop feature to determine the cropped margins, then just use the same values on the untouched layer.</p>
-<img class="standalone" src="D_I_E__crop.jpg" />
+<p>And the tool does that, no problem. Actual technique I've used was to create a simple mask-layer, adjust it's contrast and use solid-crop feature to determine the cropped margins, then just use the same values on the original layer.</p>
+<a class="fullview" href="D_I_E__crop.jpg"><img class="standalone" src="D_I_E__crop__l.jpg" /></a>
 
 <p>It certainly is better, but still in no way fits nicely to 16:9 screen with larger resolution, and this is the point where LQR (liquid resizing aka seam carving) algorithm comes into play.</p>
 <p>LQR drops/scales the most featureless parts of an image, so all the important parts could be left untouched.</p>
 <p>I highly recommend to spend a minute or two to skim over this <a href="http://www.youtube.com/watch?v=vIFCV2spKtg">YouTube video</a>, showing what the algorithm is capable of and explaining how it does that. You'll probably never look at the usual Cubic and Sinc the same way again ;)</p>
-<img class="standalone" src="D_I_E__lqr.jpg" />
+<a class="fullview" href="D_I_E__lqr.jpg"><img class="standalone" src="D_I_E__lqr__l.jpg" /></a>
 
 <p>As you can see, black leftovers at the bottom magically disappeared, leaving the original label intact, which is a superior result than can be produced with simple matrix interpolations.</p>
 
 <p>Since most of my images come from the sites like <a href="http://www.deviantart.com/">DeviantArt</a> (I actually aggregate interesting (to me) channels from there to this feed), which make it easy to track authors, most time when I see really cool artwork, I like to know who made it and if there's more of such awesomeness (and there usually is!).</p>
 <p>So a filename is a nice thing to see, at least. Author name could be there, you can maybe look up an image by it, if it really corresponds to image title in an obvious way.</p>
 <p>But most images also come with an embedded tags, like <a href="http://en.wikipedia.org/wiki/EXIF">EXIF</a> or <a href="http://en.wikipedia.org/wiki/Extensible_Metadata_Platform">XMP</a>, and all the info like author and title is there in the sane state, so these are used in the label if present in a file, overriding filename/mtime defaults:</p>
-<img class="standalone" src="D_I_E__label.jpg" />
+<a class="fullview" href="D_I_E__label.jpg"><img class="standalone" src="D_I_E__label.jpg" /></a>
 
 <p>Note that label color is a bit of PITA and not quite easy to get right reliably.<p>
 <p>Tool calculates label size, takes the average color in the area where it'll be rendered and picks the most different (<a href="http://en.wikipedia.org/wiki/Color_difference#CIEDE2000">Delta E, CIEDE2000 algorithm</a>) color from the predefined set of a brightest ones.</p>
 
-<p>So far, results don't make me flinch in disgust at horribly-mangled images, but if there's a room for improvement, guess I'll spot it over time, and will certainly appreciate any suggestions, since I don't really work with graphics at all, and have no idea of even the basic concepts every artist and designer are probably aware of.</p>
+<p>So far, results don't make me flinch in disgust at horribly-mangled images, but if there's a room for improvement, guess I'll spot it over time, and will certainly appreciate any suggestions, since I don't really work with graphics at all, and may not know even some basic concepts every artist and designer are probably aware of.</p>
 
 
 <h2 id="installation">Installation</h2>
@@ -177,11 +195,11 @@ chmod +x ~/.gimp-2.6/plug-ins/lqr_wpset.py
 
 <p>To quote the command itself:</p>
 <pre>
-fraggod@sacrilege:-hatch/aura% ./aura.sh -h
+~% aura -h
 Usage:
-  aura.sh paths...
-  aura.sh ( -d | --daemon ) [ --no-fork ] paths...
-  aura.sh [ -n | --next ] [ -b | --blacklist ] [ -k | --kill ] [ -h | --help ]
+  aura paths...
+  aura ( -d | --daemon ) [ --no-fork ] paths...
+  aura [ -n | --next ] [ -b | --blacklist ] [ -k | --kill ] [ -h | --help ]
 
 Set background image, randomly selected from the specified paths.
 
@@ -200,13 +218,14 @@ Various paths and parameters are specified in the beginning of this script.
 
 <p>...and mentioned "beginning of this script" is:</p>
 <pre>
-fraggod@sacrilege:-hatch/aura% h -15 aura.sh
+~% head -17 aura
 #!/bin/bash
 
 ## Options
 interval=$(( 3 * 3600 )) # 3h
 recheck=$(( 3600 )) # 1h
 activity_timeout=$(( 30 * 60 )) # 30min
+max_log_size=$(( 1024 * 1024 )) # 1M, current+last files are kept
 
 gimp_cmd="nice ionice -c3 gimp"
 
