@@ -62,6 +62,9 @@ def process_tags(path):
 						try: meta[label] = meta[label].value
 						except AttributeError: pass
 					meta[label] = meta[label].strip()
+					if meta[label] in label_tags_discard:
+						del meta[label]
+						raise KeyError
 				except KeyError: pass
 				else: break
 	return meta
@@ -273,6 +276,9 @@ label_tags = [
 		lambda ts: ( datetime.strptime(ts, '%Y:%m:%d %H:%M:%S')
 			if not isinstance(ts, datetime) else ts).strftime(ts_format)),
 	('set', [], lambda ts: datetime.now().strftime(ts_format)) ]
+
+# stuff that should never appear in the label
+label_tags_discard = set(['SONY DSC'])
 
 
 ### Gimp plugin boilerplate
