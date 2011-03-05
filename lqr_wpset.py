@@ -14,10 +14,10 @@ from __future__ import unicode_literals, print_function
 
 __author__ = 'Mike Kazantsev'
 __copyright__ = 'Copyright 2011, Mike Kazantsev'
-__license__ = 'BSD'
-__version__ = '0.1'
+__license__ = 'Public Domain'
+__version__ = '0.2'
 __email__ = 'mk.fraggod@gmail.com'
-__status__ = 'alpha'
+__status__ = 'beta'
 __blurb__ = 'LQRify to desktop'
 __description__ = 'LQR-rescale image to desktop size and set as a background.'
 
@@ -289,6 +289,6 @@ register(
 	'2011',
 	'<Toolbox>/Xtns/Languages/Python-Fu/LQRify to desktop',
 	'RGB*',
-	[(PF_STRING, 'file_name', 'Input file name', '')], [],
+	[(PF_FILE, 'file_name', 'Input file name', '')], [],
 	lqr_wpset )
 main()
