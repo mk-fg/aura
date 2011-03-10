@@ -61,7 +61,9 @@ def process_tags(path):
 					except AttributeError:
 						try: meta[label] = meta[label].value
 						except AttributeError: pass
-					meta[label] = meta[label].strip()
+					if isinstance(meta[label], dict) and 'x-default' in meta[label]:
+						meta[label] = meta[label]['x-default']
+					meta[label] = unicode(meta[label]).strip()
 					if meta[label] in label_tags_discard:
 						del meta[label]
 						raise KeyError
