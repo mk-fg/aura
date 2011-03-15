@@ -40,7 +40,7 @@ tmp_dir = '/tmp'
 import itertools as it, operator as op, functools as ft
 from datetime import datetime
 from tempfile import mkstemp
-import os, sys, types, gtk
+import os, sys, collections, gtk
 
 from gimpfu import *
 import gimp
@@ -63,7 +63,7 @@ def process_tags(path):
 						except AttributeError: pass
 					if isinstance(meta[label], dict) and 'x-default' in meta[label]:
 						meta[label] = meta[label]['x-default']
-					if not isinstance(meta[label], types.StringTypes)\
+					if isinstance(meta[label], collections.Sequence)\
 						and len(meta[label]) == 1: meta[label] = meta[label][0]
 					meta[label] = unicode(meta[label]).strip()
 					if meta[label] in label_tags_discard:
