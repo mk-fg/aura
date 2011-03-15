@@ -21,7 +21,7 @@ __status__ = 'beta'
 __blurb__ = 'LQRify to desktop'
 __description__ = 'LQR-rescale image to desktop size and set as a background.'
 
-max_aspect_diff = 0.5 # 16/9 - 4/3 = 0.444
+max_aspect_diff = 0.7 # 16/9 - 4/3 = 0.444
 max_smaller_diff = 3 # don't process images N times smaller by area (w*h)
 min_prescale_diff = 0.3 # use cubic on larger images (preserving aspect), then lqr
 label_offset = 10, 10
@@ -40,7 +40,7 @@ tmp_dir = '/tmp'
 import itertools as it, operator as op, functools as ft
 from datetime import datetime
 from tempfile import mkstemp
-import os, sys, gtk
+import os, sys, types, gtk
 
 from gimpfu import *
 import gimp
@@ -63,6 +63,8 @@ def process_tags(path):
 						except AttributeError: pass
 					if isinstance(meta[label], dict) and 'x-default' in meta[label]:
 						meta[label] = meta[label]['x-default']
+					if not isinstance(meta[label], types.StringTypes)\
+						and len(meta[label]) == 1: meta[label] = meta[label][0]
 					meta[label] = unicode(meta[label]).strip()
 					if meta[label] in label_tags_discard:
 						del meta[label]
