@@ -16,6 +16,21 @@ log_curr="$wps_dir"/current
 pid="$wps_dir"/picker.pid
 
 
+## Since pid can be re-used (and it's surprisingly common), pidfile lock is also checked
+with_pid() {
+	local pid_instance pid_check
+	[[ ! -e "$pid" ]] && return 1
+	flock -n 3 3<"$pid" && return 1
+	pid_instance=$(pgrep -F "$pid")
+	pid_check=$?
+	if [[ -n "$1" ]]
+	then
+		"$@" $pid_instance
+		return $?
+	else return $pid_check
+	fi
+}
+
 ## Commanline processing
 action=
 no_fork=
@@ -26,17 +41,17 @@ while [[ -n "$1" ]]; do
 		--no-fork) no_fork=true ;;
 		-n|--next)
 			action=break
-			pkill -HUP -F "$pid" ;;
+			with_pid kill -HUP ;;
 		-b|--blacklist)
 			action=break
 			echo "$(cat "$log_curr")" >>"$blacklist" ;;
 		-bn|-nb)
 			action=break
 			echo "$(cat "$log_curr")" >>"$blacklist"
-			pkill -HUP -F "$pid" ;;
+			with_pid kill -HUP ;;
 		-k|--kill)
 			action=break
-			pkill -F "$pid" ;;
+			with_pid kill ;;
 		-x)
 			reexec=true
 			action=daemon ;;
@@ -72,9 +87,7 @@ done
 
 
 ## Pre-start sanity checks
-pid_instance=
-[[ -e "$pid" ]] && pid_instance=$(pgrep -F "$pid")
-if [[ -n "$pid_instance" ]]; then
+if pid_instance=$(with_pid echo); then
 	echo >&2 "Detected already running instance (pid: $pid_instance)"
 	exit 0
 fi
@@ -95,6 +108,8 @@ if [[ -z "$reexec" ]]; then
 	[[ $(ps -o 'pgid=' $$) -ne $$ ]] && exec setsid -x "$0" "$@"
 fi
 
+exec 3<"$pid"
+flock 3
 echo $$ >"$pid"
 
 
