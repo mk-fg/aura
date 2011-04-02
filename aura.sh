@@ -35,23 +35,27 @@ with_pid() {
 action=
 no_fork=
 reexec=
+result=0
 while [[ -n "$1" ]]; do
 	case "$1" in
 		-d|--daemon) action=daemon ;;
 		--no-fork) no_fork=true ;;
 		-n|--next)
 			action=break
-			with_pid kill -HUP ;;
+			with_pid kill -HUP
+			result=$? ;;
 		-b|--blacklist)
 			action=break
 			echo "$(cat "$log_curr")" >>"$blacklist" ;;
 		-bn|-nb)
 			action=break
 			echo "$(cat "$log_curr")" >>"$blacklist"
-			with_pid kill -HUP ;;
+			with_pid kill -HUP
+			result=$? ;;
 		-k|--kill)
 			action=break
-			with_pid kill ;;
+			with_pid kill
+			result=$? ;;
 		-x)
 			reexec=true
 			action=daemon ;;
@@ -83,7 +87,7 @@ EOF
 	esac
 	shift
 done
-[[ "$action" = break ]] && exit 0
+[[ "$action" = break ]] && exit $result
 
 
 ## Pre-start sanity checks
