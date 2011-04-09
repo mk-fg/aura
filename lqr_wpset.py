@@ -126,7 +126,7 @@ def lqr_wpset(path):
 	for spec in label_tags:
 		try: label, conv = op.itemgetter(0, 2)(spec)
 		except IndexError:
-			meta[spec[0]] = '{0} (tag)'.format(meta[spec[0]])
+			if spec[0] in meta: meta[spec[0]] = '{0} (tag)'.format(meta[spec[0]])
 		else:
 			if label in meta: # try to use tags whenever possible
 				try: meta[label] = '{0} (tag)'.format(conv(meta[label]))
