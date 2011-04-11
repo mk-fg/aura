@@ -15,7 +15,7 @@ from __future__ import unicode_literals, print_function
 __author__ = 'Mike Kazantsev'
 __copyright__ = 'Copyright 2011, Mike Kazantsev'
 __license__ = 'Public Domain'
-__version__ = '0.5'
+__version__ = '0.6'
 __email__ = 'mk.fraggod@gmail.com'
 __status__ = 'beta'
 __blurb__ = 'LQRify to desktop'
@@ -61,6 +61,7 @@ def process_tags(path):
 					except AttributeError:
 						try: meta[label] = meta[label].value
 						except AttributeError: pass
+					if not meta[label]: raise KeyError # skip empty entries
 					if isinstance(meta[label], dict) and 'x-default' in meta[label]:
 						meta[label] = meta[label]['x-default']
 					if isinstance(meta[label], collections.Sequence)\
@@ -125,17 +126,16 @@ def lqr_wpset(path):
 		else dict()
 	for spec in label_tags:
 		try: label, conv = op.itemgetter(0, 2)(spec)
-		except IndexError:
-			if spec[0] in meta: meta[spec[0]] = '{0} (tag)'.format(meta[spec[0]])
+		except IndexError: label, conv = spec[0], lambda x: x
+		if meta.get(label): # try to use tags whenever possible
+			try: meta[label] = '{0} (tag)'.format(conv(meta[label]))
+			except: meta[label] = '{0} (raw tag)'.format(meta[label])
 		else:
-			if label in meta: # try to use tags whenever possible
-				try: meta[label] = '{0} (tag)'.format(conv(meta[label]))
-				except: meta[label] = '{0} (raw tag)'.format(meta[label])
-			else:
-				try: meta_base[label] = '{0}'.format(conv(meta_base.get(label)))
-				except:
-					if label in meta_base:
-						meta_base[label] = '{0} (raw)'.format(meta_base[label])
+			if label in meta: del meta[label] # empty tag (shouldn't really happen here)
+			try: meta_base[label] = unicode(conv(meta_base.get(label)))
+			except:
+				if label in meta_base:
+					meta_base[label] = '{0} (raw)'.format(meta_base[label])
 	meta_base.update(meta)
 	meta = meta_base
 
