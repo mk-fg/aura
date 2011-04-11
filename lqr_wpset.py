@@ -15,7 +15,7 @@ from __future__ import unicode_literals, print_function
 __author__ = 'Mike Kazantsev'
 __copyright__ = 'Copyright 2011, Mike Kazantsev'
 __license__ = 'Public Domain'
-__version__ = '0.6'
+__version__ = '0.7'
 __email__ = 'mk.fraggod@gmail.com'
 __status__ = 'beta'
 __blurb__ = 'LQRify to desktop'
@@ -132,7 +132,10 @@ def lqr_wpset(path):
 			except: meta[label] = '{0} (raw tag)'.format(meta[label])
 		else:
 			if label in meta: del meta[label] # empty tag (shouldn't really happen here)
-			try: meta_base[label] = unicode(conv(meta_base.get(label)))
+			try:
+				spec = conv(meta_base.get(label))
+				if not spec: raise KeyError
+				meta_base[label] = unicode(spec)
 			except:
 				if label in meta_base:
 					meta_base[label] = '{0} (raw)'.format(meta_base[label])
