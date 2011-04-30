@@ -50,8 +50,12 @@ def process_tags(path):
 	try: import pyexiv2
 	except ImportError: pass # TODO: gimp is capable of parsing XMP on it's own
 	else:
-		tags = pyexiv2.ImageMetadata(path)
-		tags.read()
+		try:
+			tags = pyexiv2.ImageMetadata(path)
+			tags.read()
+		except AttributeError: # pyexiv2 <=1.3
+			tags = pyexiv2.Image(path)
+			tags.readMetadata()
 		for spec in label_tags:
 			label, tag_ids = spec[:2]
 			for tag_id in tag_ids:
