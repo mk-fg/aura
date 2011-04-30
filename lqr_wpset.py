@@ -286,7 +286,7 @@ label_tags = [
 	('set', [], lambda ts: datetime.now().strftime(ts_format)) ]
 
 # stuff that should never appear in the label
-label_tags_discard = set(['SONY DSC'])
+label_tags_discard = set(['SONY DSC', 'OLYMPUS DIGITAL CAMERA'])
 
 
 ### Gimp plugin boilerplate
