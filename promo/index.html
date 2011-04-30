@@ -77,8 +77,10 @@ $(document).ready(function() {
 <h2 id="quck_links">Quick links</h2>
 
 <ul>
-<li><a href="http://sf.net/projects/desktop-aura/">Sourceforge project page.</a></li>
-<li><a href="http://sf.net/projects/desktop-aura/files/">File releases (aka "Downloads").</a></li>
+<li><a href="http://sf.net/projects/desktop-aura/">Sourceforge project page</a></li>
+<li><a href="http://sf.net/projects/desktop-aura/files/">File releases (aka "Downloads")</a></li>
+<li><a href="http://sf.net/p/desktop-aura/discussion/">Discussion page - any questions / feedback are welcome</a></li>
+<li><a href="http://sf.net/p/desktop-aura/tickets/">Bug / issue tracker for anything that will go wrong</a></li>
 </ul>
 
 
@@ -180,7 +182,9 @@ $(document).ready(function() {
 
 <p>These are probably best to get using the package manager, but colormath can be installed with a simple "easy_install colormath" or "pip colormath" command.</p>
 
-<p>Actual "installation" is needed for the gimp plugin (lqr_wpset.py), which should be put into one of gimp plugin directories, like "~/.gimp-2.6/plug-ins/" and be marked as executable. Here's what I mean:</p>
+<p>Project files can be downloaded from <a href="http://sf.net/projects/desktop-aura/files/">this page</a>, just one latest .tar.gz will do. Tarball can be extracted with regular double-click from some GUI (like GNOME Nautilus shell, KDE Dolphin, XFCE Thunar, etc), tapping enter on it inside midnight commander or typing "tar xf /path/to/aura-X.Y.tar.gz" in some shell. Inside there are two files beside the ubiquitous "README" - "lqr_wpset.py" and "aura".</p>
+
+<p>Actual "installation" is needed for the gimp plugin (lqr_wpset.py), which should be put into one of gimp plugin directories, like "~/.gimp-2.6/plug-ins/" (other option is usually "/usr/lib/gimp/2.0/plug-ins", but your mileage may vary across distros, read the docs <a href="http://en.wikibooks.org/wiki/GIMP/Installing_Plugins">here</a> or <a href="http://docs.gimp.org/en/gimp-scripting.html#gimp-plugins-install">there</a> if in doubt) and be marked as executable. Here's what I mean:</p>
 
 <pre>
 mkdir -p ~/.gimp-2.6/plug-ins/
