@@ -60,7 +60,8 @@ def process_tags(path):
 			label, tag_ids = spec[:2]
 			for tag_id in tag_ids:
 				try:
-					meta[label] = tags[bytes(tag_id)]
+					try: meta[label] = tags[bytes(tag_id)]
+					except IndexError: raise KeyError # older pyexiv2
 					try: meta[label] = meta[label].human_value
 					except AttributeError:
 						try: meta[label] = meta[label].value
@@ -170,7 +171,7 @@ def lqr_wpset(path):
 	# tags, ordered according to label_tags
 	meta = list( (label, meta.pop(label))
 		for label in it.imap(op.itemgetter(0), label_tags)
-		if label in meta ) + list(meta.viewitems())
+		if label in meta ) + list(meta.iteritems())
 	offset_layer = 0.5 * font_timestamp[1]
 	offset_y = label_title.offsets[1] + label_title.height + offset_layer
 	label_keys = pdb.gimp_text_fontname( image, layer_image,
@@ -214,22 +215,25 @@ def lqr_wpset(path):
 	# meld all the layers together
 	image.flatten()
 
-	## Save image to a temporary file and load it into a gdk pixbuffer
+	## Save image to a temporary file and set it as a bg
+	## Note that with gconf files are not unlinked, relying on os mechanisms to do that
 	fd, tmp_file = mkstemp(prefix='gimp.', suffix='.png', dir=tmp_dir)
+	pdb.gimp_file_save(image, image.active_layer, tmp_file, tmp_file)
 	try:
-		pdb.gimp_file_save(image, image.active_layer, tmp_file, tmp_file)
+		import gconf
+		gconf.client_get_default().set_string(
+			'/desktop/gnome/background/picture_filename', tmp_file )
+	except ImportError:
 		pb = gtk.gdk.pixbuf_new_from_file(tmp_file)
-	finally: os.unlink(tmp_file)
-	pdb.gimp_image_delete(image)
-
-	## Set image as a root window background
-	win = gtk.gdk.get_default_root_window()
-	pm, mask = pb.render_pixmap_and_mask()
-	win.set_back_pixmap(pm, False)
-	win.clear()
-	pb.render_to_drawable(win, gtk.gdk.GC(win), 0, 0, 0, 0, -1, -1)
+		os.unlink(tmp_file)
+		win = gtk.gdk.get_default_root_window()
+		pm, mask = pb.render_pixmap_and_mask()
+		win.set_back_pixmap(pm, False)
+		win.clear()
+		pb.render_to_drawable(win, gtk.gdk.GC(win), 0, 0, 0, 0, -1, -1)
 
 	## Restore gimp state
+	pdb.gimp_image_delete(image)
 	gimp.set_foreground(bak_colors[0]), gimp.set_background(bak_colors[1])
 
 
@@ -250,7 +254,7 @@ label_tags = [
 			'Exif.Image.ImageDescription',
 			'Xmp.dc.description' ],
 		lambda title: title if not isinstance(title, dict)\
-			else ', '.join(title.viewvalues())),
+			else ', '.join(title.itervalues())),
 	('author', [ 'Exif.Image.Artist',
 			'Xmp.dc.creator',
 			'Xmp.xmpRights.Owner',
