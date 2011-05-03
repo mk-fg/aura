@@ -112,6 +112,7 @@ if [[ -z "$reexec" ]]; then
 	[[ $(ps -o 'pgid=' $$) -ne $$ ]] && exec setsid -x "$0" "$@"
 fi
 
+touch "$pid"
 exec 3<"$pid"
 flock 3
 echo $$ >"$pid"
@@ -130,7 +131,7 @@ sleep_int() {
 
 ## Log update with rotation
 log() {
-	[[ "$(stat --format=%s "$1")" -gt "$max_log_size" ]] && mv "$1"{,.old}
+	[[ -e "$1" && "$(stat --format=%s "$1")" -gt "$max_log_size" ]] && mv "$1"{,.old}
 	echo "$2" >>"$1"
 }
 
