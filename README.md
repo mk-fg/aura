@@ -59,12 +59,24 @@ Optional stuff (will be used if available):
     pick the most contrast color for label using CIEDE2000 (simplier algorithm
     will be used otherwise).
 
+  * [gconf](http://projects.gnome.org/gconf/) - to set background in GNOME
+    environment, where root windown isn't exposed directly.
+
 These are probably best to get using the package manager, but colormath can be
 installed with a simple "easy_install colormath" or "pip colormath" command.
 
-Actual "installation" is needed for the gimp plugin (lqr_wpset.py), which
-should be put into one of gimp plugin directories, like "~/.gimp-2.6/plug-
-ins/" and be marked as executable. Here's what I mean:
+Project files can be downloaded from this page, just one latest .tar.gz will do.
+Tarball can be extracted with regular double-click from some GUI (like GNOME
+Nautilus shell, KDE Dolphin, XFCE Thunar, etc), tapping enter on it inside
+midnight commander or typing "tar xf /path/to/aura-X.Y.tar.gz" in some shell.
+Inside there are two files beside the ubiquitous "README" - "lqr_wpset.py" and
+"aura".
+
+Actual "installation" is needed for the gimp plugin (lqr_wpset.py), which should
+be put into one of gimp plugin directories, like "~/.gimp-2.6/plug-ins/" (another
+option is usually "/usr/lib/gimp/2.0/plug-ins", but your mileage may vary across
+distros, read the gimp/distro docs if in doubt) and be marked as executable.
+Here's what I mean:
 
     mkdir -p ~/.gimp-2.6/plug-ins/
     cp lqr_wpset.py ~/.gimp-2.6/plug-ins/
