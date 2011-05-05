@@ -154,7 +154,7 @@ $(document).ready(function() {
 <p>Note that label color is a bit of PITA and not quite easy to get right reliably.<p>
 <p>Tool calculates label size, takes the average color in the area where it'll be rendered and picks the most different (<a href="http://en.wikipedia.org/wiki/Color_difference#CIEDE2000">Delta E, CIEDE2000 algorithm</a>) color from the predefined set of a brightest ones.</p>
 
-<p>Produced image is then set as a background using either python gconf interface (for gnome), xfconf (xfce) or just drawing it to a root window via pygtk.<p>
+<p>Produced image is then set as a background using either python gconf interface (for gnome), xfconf (xfce) via dbus interface or just by drawing it to an X root window via pygtk.<p>
 
 <p>So far, results don't make me flinch in disgust at horribly-mangled images, but if there's a room for improvement, guess I'll spot it over time, and will certainly appreciate any suggestions, since I don't really work with graphics at all, and may not know even some basic concepts every artist and designer are probably aware of.</p>
 
