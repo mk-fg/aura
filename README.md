@@ -59,9 +59,6 @@ Optional stuff (will be used if available):
     pick the most contrast color for label using CIEDE2000 (simplier algorithm
     will be used otherwise).
 
-  * [gconf](http://projects.gnome.org/gconf/) - to set background in GNOME
-    environment, where root windown isn't exposed directly.
-
 These are probably best to get using the package manager, but colormath can be
 installed with a simple "easy_install colormath" or "pip colormath" command.
 

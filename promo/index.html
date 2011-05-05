@@ -60,7 +60,7 @@ $(document).ready(function() {
 
 <h2 id="summary">Summary</h2>
 
-<p>"aura" tool is a desktop (X root window) background setter, capable of:
+<p>"aura" tool is a desktop background setter, capable of:
 <ul>
 <li>picking image randomly from specified paths;</li>
 <li>skipping too small images and images with too different aspect rate;</li>
@@ -154,6 +154,8 @@ $(document).ready(function() {
 <p>Note that label color is a bit of PITA and not quite easy to get right reliably.<p>
 <p>Tool calculates label size, takes the average color in the area where it'll be rendered and picks the most different (<a href="http://en.wikipedia.org/wiki/Color_difference#CIEDE2000">Delta E, CIEDE2000 algorithm</a>) color from the predefined set of a brightest ones.</p>
 
+<p>Produced image is then set as a background using either python gconf interface (for gnome), xfconf (xfce) or just drawing it to a root window via pygtk.<p>
+
 <p>So far, results don't make me flinch in disgust at horribly-mangled images, but if there's a room for improvement, guess I'll spot it over time, and will certainly appreciate any suggestions, since I don't really work with graphics at all, and may not know even some basic concepts every artist and designer are probably aware of.</p>
 
 
@@ -178,7 +180,6 @@ $(document).ready(function() {
 <li><a href="http://www.dtek.chalmers.se/~henoch/text/xprintidle.html">xprintidle tool</a> - to cycle images only when system is not idle (1h threshold, by default).</li>
 <li><a href="http://tilloy.net/dev/pyexiv2/">pyexiv2 python module</a> - to use information from EXIF/XMP/IDC tags in labels.</li>
 <li><a href="http://code.google.com/p/python-colormath/">colormath python module</a> - to pick the most contrast color for label using CIEDE2000 (simplier algorithm will be used otherwise).</li>
-<li><a href="http://projects.gnome.org/gconf/">gconf</a> - to set background in GNOME (or similar) environments, where root window isn't exposed directly.</li>
 </ul>
 
 <p>These are probably best to get using the package manager, but colormath can be installed with a simple "easy_install colormath" or "pip colormath" command.</p>
