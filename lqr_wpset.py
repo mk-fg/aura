@@ -15,7 +15,7 @@ from __future__ import unicode_literals, print_function
 __author__ = 'Mike Kazantsev'
 __copyright__ = 'Copyright 2011, Mike Kazantsev'
 __license__ = 'Public Domain'
-__version__ = '0.9'
+__version__ = '0.10'
 __email__ = 'mk.fraggod@gmail.com'
 __status__ = 'beta'
 __blurb__ = 'LQRify to desktop'
@@ -29,7 +29,7 @@ label_colors = [0]*3, [255]*3, (255, 0, 0),\
 	(0, 255, 0), (0, 0, 255), (255, 255, 0), (0, 255, 255) # most contrast one will be chosen
 font_filename = 'URW Palladio L Medium', 16
 font_timestamp = 'URW Palladio L Medium', 11
-tmp_dir = '/tmp'
+result_path = '/tmp/.lqr_wpset_bg.png'
 
 # see also extra-bulky "label_tags" definition in the script's tail
 ####################
@@ -40,7 +40,8 @@ tmp_dir = '/tmp'
 import itertools as it, operator as op, functools as ft
 from datetime import datetime
 from tempfile import mkstemp
-import os, sys, collections, gtk
+from gtk import gdk
+import os, sys, collections
 
 from gimpfu import *
 import gimp
@@ -92,10 +93,45 @@ def pick_contrast_color(bg_color):
 	return tuple(color_diffs[max(color_diffs)])
 
 
+def set_background(path):
+	# Note that the path is not unlinked, because gconf and xfconf set bg
+	#  asynchronously, so there's no way of knowing when the image will
+	#  actually be used
+
+	## Gconf - GNOME, XFCE/nautilus and such
+	try:
+		import gconf
+		gconf = gconf.client_get_default()
+		gconf.set_string(
+			'/desktop/gnome/background/picture_filename', path )
+	except ImportError: pass
+
+	## Xfconf (via dbus interface) - XFCE/xfdesktop
+	try: import dbus
+	except ImportError: pass
+	else:
+		try:
+			xfconf = dbus.Interface(
+				dbus.SessionBus().get_object(
+					'org.xfce.Xfconf', '/org/xfce/Xfconf' ),
+				dbus_interface='org.xfce.Xfconf' )
+			for k,v in xfconf.GetAllProperties('xfce4-desktop', '/backdrop').iteritems():
+				if k.endswith('/image-path'): xfconf.SetProperty('xfce4-desktop', k, path)
+		except dbus.exceptions.DBusException: pass # no property/object/interface/etc
+
+	## Paint X root window via pygtk
+	pb = gdk.pixbuf_new_from_file(path)
+	pm, mask = pb.render_pixmap_and_mask()
+	win = gdk.get_default_root_window()
+	win.set_back_pixmap(pm, False)
+	win.clear()
+	win.draw_pixbuf(gdk.GC(win), pb, 0, 0, 0, 0, -1, -1)
+
+
 def lqr_wpset(path):
 	image = pdb.gimp_file_load(path, path)
 	layer_image = image.active_layer
-	w, h = gtk.gdk.screen_width(), gtk.gdk.screen_height()
+	w, h = gdk.screen_width(), gdk.screen_height()
 	bak_colors = gimp.get_foreground(), gimp.get_background()
 
 	## Crop black margins
@@ -148,8 +184,8 @@ def lqr_wpset(path):
 	meta = meta_base
 
 	## Rescaling
-	# pre-LQR rescaling, preserving aspect
-	# improves quality and saves a lot of jiffies
+	# Pre-LQR rescaling, preserving aspect
+	# Improves quality and saves a lot of jiffies
 	if diff_size > min_prescale_diff:
 		new_size = map( lambda x: round(x, 0),
 			(image.width - (image.height - h) * aspects[1], h)\
@@ -157,18 +193,18 @@ def lqr_wpset(path):
 			(w, image.height - (image.width - w) / aspects[0]) )
 		pdb.gimp_image_scale_full( image,
 			new_size[0], new_size[1], INTERPOLATION_CUBIC )
-	# all but the first 4 parameters are defaults, taken from batch-gimp-lqr.scm
+	# All but the first 4 parameters are defaults, taken from batch-gimp-lqr.scm
 	pdb.plug_in_lqr( image, layer_image, w, h,
 		0, 1000, 0, 1000, 0, 0, 1, 150, 1, 1, 0, 0, 3, 0, 0, 0, 0, 1, '', '', '', '' )
 
 	## Render label on top of the image layer
-	# first, render all the the text boxes
-	# image title, larger than the rest of the tags
+	# First, render all the the text boxes
+	# Image title, larger than the rest of the tags
 	label_title = pdb.gimp_text_fontname( image, layer_image,
 		label_offset[0], label_offset[1], meta.pop('title'),
 		-1, True, font_filename[1], PIXELS, font_filename[0] )
 	pdb.gimp_floating_sel_to_layer(label_title)
-	# tags, ordered according to label_tags
+	# Tags, ordered according to label_tags
 	meta = list( (label, meta.pop(label))
 		for label in it.imap(op.itemgetter(0), label_tags)
 		if label in meta ) + list(meta.iteritems())
@@ -186,7 +222,7 @@ def lqr_wpset(path):
 	pdb.gimp_floating_sel_to_layer(label_vals)
 	label_layers = label_title, label_keys, label_vals
 
-	# find average color within the label_geom box
+	# Find average color within the label_geom box
 	#  and pick the most distant color from label_colors
 	label_geom = tuple(( layer.offsets + op.attrgetter(
 		'width', 'height')(layer) ) for layer in label_layers)
@@ -202,7 +238,7 @@ def lqr_wpset(path):
 		for channel in [HISTOGRAM_RED, HISTOGRAM_GREEN, HISTOGRAM_BLUE] )
 	label_fg_color = pick_contrast_color(label_bg_color)
 	gimp.set_foreground(label_fg_color), gimp.set_background(label_bg_color)
-	# set the picked color for all label layers, draw outlines
+	# Set the picked color for all label layers, draw outlines
 	label_outline = image.new_layer( 'label_outline',
 		opacity=30, pos=image.layers.index(layer_image) )
 	for layer in label_layers:
@@ -212,25 +248,13 @@ def lqr_wpset(path):
 		pdb.gimp_vectors_to_selection(path, CHANNEL_OP_REPLACE, True, False, 0, 0)
 		pdb.gimp_selection_grow(image, 1), pdb.gimp_selection_border(image, 1)
 		pdb.gimp_edit_fill(label_outline, BACKGROUND_FILL)
-	# meld all the layers together
+	# Meld all the layers together
 	image.flatten()
 
 	## Save image to a temporary file and set it as a bg
-	## Note that with gconf files are not unlinked, relying on os mechanisms to do that
-	fd, tmp_file = mkstemp(prefix='gimp.', suffix='.png', dir=tmp_dir)
-	pdb.gimp_file_save(image, image.active_layer, tmp_file, tmp_file)
-	try:
-		import gconf
-		gconf.client_get_default().set_string(
-			'/desktop/gnome/background/picture_filename', tmp_file )
-	except ImportError:
-		pb = gtk.gdk.pixbuf_new_from_file(tmp_file)
-		os.unlink(tmp_file)
-		win = gtk.gdk.get_default_root_window()
-		pm, mask = pb.render_pixmap_and_mask()
-		win.set_back_pixmap(pm, False)
-		win.clear()
-		pb.render_to_drawable(win, gtk.gdk.GC(win), 0, 0, 0, 0, -1, -1)
+	# Relying on underlying os /tmp cleanup mechanisms here
+	pdb.gimp_file_save(image, image.active_layer, result_path, result_path)
+	set_background(result_path)
 
 	## Restore gimp state
 	pdb.gimp_image_delete(image)
@@ -239,11 +263,11 @@ def lqr_wpset(path):
 
 ### Extra bulky metadata
 
-# fields to display on label
-# first nonempty tag on the list will be used for a label, unfilled entries will be hidden
-# optional third element is a conversion/autofill function, see "set", "created"
-# pre-initialized fields are "title" (file basename), "created" (file mtime as datetime)
-# all the fields are taken from here: http://www.exiv2.org/metadata.html
+# Fields to display on label
+# First nonempty tag on the list will be used for a label, unfilled entries will be hidden
+# Optional third element is a conversion/autofill function, see "set", "created"
+# Pre-initialized fields are "title" (file basename), "created" (file mtime as datetime)
+# All the fields are taken from here: http://www.exiv2.org/metadata.html
 ts_format = '%H:%M %d.%m.%Y' # just for conversion funcs below
 label_tags = [
 	('title', [ 'Xmp.dc.title',
@@ -293,7 +317,7 @@ label_tags = [
 			if not isinstance(ts, datetime) else ts).strftime(ts_format)),
 	('set', [], lambda ts: datetime.now().strftime(ts_format)) ]
 
-# stuff that should never appear in the label
+# Stuff that should never appear in the label
 label_tags_discard = set(['SONY DSC', 'OLYMPUS DIGITAL CAMERA'])
 
 
