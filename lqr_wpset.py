@@ -29,7 +29,10 @@ label_colors = [0]*3, [255]*3, (255, 0, 0),\
 	(0, 255, 0), (0, 0, 255), (255, 255, 0), (0, 255, 255) # most contrast one will be chosen
 font_filename = 'URW Palladio L Medium', 16
 font_timestamp = 'URW Palladio L Medium', 11
-result_path = '/tmp/.lqr_wpset_bg.png'
+
+# Asterisk will be replaced by temporary id for created images
+# All files matching the pattern will be a subject to cleanup!
+result_path = '/tmp/.lqr_wpset_bg.*.png'
 
 # see also extra-bulky "label_tags" definition in the script's tail
 ####################
@@ -40,6 +43,7 @@ result_path = '/tmp/.lqr_wpset_bg.png'
 import itertools as it, operator as op, functools as ft
 from datetime import datetime
 from tempfile import mkstemp
+from glob import iglob
 from gtk import gdk
 import os, sys, collections
 
@@ -251,10 +255,13 @@ def lqr_wpset(path):
 	# Meld all the layers together
 	image.flatten()
 
-	## Save image to a temporary file and set it as a bg
-	# Relying on underlying os /tmp cleanup mechanisms here
-	pdb.gimp_file_save(image, image.active_layer, result_path, result_path)
-	set_background(result_path)
+	## Save image to a temporary file and set it as a bg, cleanup older images
+	for tmp_file in iglob(result_path): os.unlink(tmp_file)
+	prefix, suffix = result_path.split('*', 1)
+	tmp_dir, prefix = prefix.rsplit('/', 1)
+	fd, tmp_file = mkstemp(prefix=prefix, suffix=suffix, dir=tmp_dir)
+	pdb.gimp_file_save(image, image.active_layer, tmp_file, tmp_file)
+	set_background(tmp_file)
 
 	## Restore gimp state
 	pdb.gimp_image_delete(image)
