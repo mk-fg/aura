@@ -59,6 +59,9 @@ while [[ -n "$1" ]]; do
 		-x)
 			reexec=true
 			action=daemon ;;
+		-c|--current)
+			action=break
+			cat "$log_curr" 2>/dev/null ;;
 		-h|--help)
 			action=break
 			cat <<EOF
@@ -72,11 +75,12 @@ Set background image, randomly selected from the specified paths.
 Optional --daemon flag starts instance in the background (unless --no-fork is
 also specified), and picks a new image every ${interval}s afterwards.
 
-Some options can be given instead of paths to control already-running
-instance (started with --daemon flag):
+Some options (or their one-letter equivalents) can be given instead of paths to
+control already-running instance (started with --daemon flag):
   --next       cycle to then next background immediately.
   --blacklist  add current background to blacklist (skip it from now on).
   --kill       stop currently running instance.
+  --current    echo current background image name
   --help       this text
 
 Various paths and parameters are specified in the beginning of this script.
