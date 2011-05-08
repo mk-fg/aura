@@ -154,7 +154,7 @@ $(document).ready(function() {
 <p>Note that label color is a bit of PITA and not quite easy to get right reliably.<p>
 <p>Tool calculates label size, takes the average color in the area where it'll be rendered and picks the most different (<a href="http://en.wikipedia.org/wiki/Color_difference#CIEDE2000">Delta E, CIEDE2000 algorithm</a>) color from the predefined set of a brightest ones.</p>
 
-<p>Produced image is then set as a background using either python gconf interface (for gnome), xfconf (xfce) via dbus interface or just by drawing it to an X root window via pygtk.<p>
+<p>Produced image is stored to "/tmp/.lqr_wpset_bg.*.png" (can be changed in <a href="#lqr_wpset_head">lqr_wpset head</a>) and then set as a background using either python gconf interface (for gnome), xfconf (xfce) via dbus interface or just by drawing it to an X root window via pygtk. To set background on modern KDE, use <a href="http://kde-look.org/content/show.php/Scripted+Image+Wallpaper+Plugin?content=115147">scripted image wallpaper plugin</a> with a simple shell script, containing just "echo /tmp/.lqr_wpset_bg.*.png" line (note no quotes, so shell will expand the asterisk).<p>
 
 <p>So far, results don't make me flinch in disgust at horribly-mangled images, but if there's a room for improvement, guess I'll spot it over time, and will certainly appreciate any suggestions, since I don't really work with graphics at all, and may not know even some basic concepts every artist and designer are probably aware of.</p>
 
@@ -222,7 +222,7 @@ instance (started with --daemon flag):
 Various paths and parameters are specified in the beginning of this script.
 </pre>
 
-<p>...and mentioned "beginning of this script" is:</p>
+<p id="aura_head">...and mentioned "beginning of this script" is:</p>
 <pre>
 ~% head -17 aura
 #!/bin/bash
@@ -243,18 +243,21 @@ log_curr="$wps_dir"/current
 pid="$wps_dir"/picker.pid
 </pre>
 
-<p>Also, see the beginning of a python plugin (lqr_wpset) for some image processing options:</p>
+<p id="lqr_wpset_head">Also, see the beginning of a python plugin (lqr_wpset) for some image processing options:</p>
 
 <pre>
-max_aspect_diff = 0.5 # 16/9 - 4/3 = 0.444
-max_smaller_diff = 2 # don't process images N times smaller by area (w*h)
+max_aspect_diff = 0.7 # 16/9 - 4/3 = 0.444
+max_smaller_diff = 3 # don't process images N times smaller by area (w*h)
 min_prescale_diff = 0.3 # use cubic on larger images (preserving aspect), then lqr
 label_offset = 10, 10
 label_colors = [0]*3, [255]*3, (255, 0, 0),\
 	(0, 255, 0), (0, 0, 255), (255, 255, 0), (0, 255, 255) # most contrast one will be chosen
 font_filename = 'URW Palladio L Medium', 16
 font_timestamp = 'URW Palladio L Medium', 11
-tmp_dir = '/tmp'
+
+# Asterisk will be replaced by temporary id for created images
+# All files matching the pattern will be a subject to cleanup!
+result_path = '/tmp/.lqr_wpset_bg.*.png'
 </pre>
 
 <p>Not that there should be any need to change this stuff, but if there is - it's just a shell/python.</p>
