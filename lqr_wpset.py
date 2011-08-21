@@ -47,6 +47,9 @@ from glob import iglob
 from gtk import gdk
 import os, sys, collections
 
+import re
+re_type = type(re.compile(''))
+
 from gimpfu import *
 import gimp
 
@@ -77,9 +80,14 @@ def process_tags(path):
 					if isinstance(meta[label], collections.Sequence)\
 						and len(meta[label]) == 1: meta[label] = meta[label][0]
 					meta[label] = unicode(meta[label]).strip()
-					if meta[label] in label_tags_discard:
-						del meta[label]
-						raise KeyError
+					for tag in label_tags_discard:
+						if isinstance(tag, re_type):
+							if tag.search(meta[label]):
+								del meta[label]
+								raise KeyError
+						elif tag in meta[label]:
+							del meta[label]
+							raise KeyError
 				except KeyError: pass
 				else: break
 	return meta
@@ -324,8 +332,8 @@ label_tags = [
 			if not isinstance(ts, datetime) else ts).strftime(ts_format)),
 	('set', [], lambda ts: datetime.now().strftime(ts_format)) ]
 
-# Stuff that should never appear in the label
-label_tags_discard = set(['SONY DSC', 'OLYMPUS DIGITAL CAMERA'])
+# Stuff that should never appear in the label (searched there), can be a compiled regex
+label_tags_discard = set(['SONY DSC', 'DIGITAL CAMERA'])
 
 
 ### Gimp plugin boilerplate
