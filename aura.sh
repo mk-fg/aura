@@ -95,14 +95,14 @@ done
 
 
 ## Pre-start sanity checks
-if pid_instance=$(with_pid echo); then
-	echo >&2 "Detected already running instance (pid: $pid_instance)"
-	exit 0
-fi
-bg_dirs=( "$@" )
-if [[ ${#bg_dirs[@]} -eq 0 ]]; then
+bg_paths=( "$@" )
+if [[ ${#bg_paths[@]} -eq 0 ]]; then
 	echo >&2 "Error: no bg paths specified"
 	exit 1
+fi
+if [[ "$action" = daemon ]] && pid_instance=$(with_pid echo); then
+	echo >&2 "Detected already running instance (pid: $pid_instance)"
+	exit 0
 fi
 mkdir -p "$wps_dir"
 [[ ! -e "$blacklist" ]] && touch "$blacklist"
@@ -116,10 +116,12 @@ if [[ -z "$reexec" ]]; then
 	[[ $(ps -o 'pgid=' $$) -ne $$ ]] && exec setsid -x "$0" "$@"
 fi
 
-touch "$pid"
-exec 3<"$pid"
-flock 3
-echo $$ >"$pid"
+if [[ "$action" = daemon ]]; then
+	touch "$pid"
+	exec 3<"$pid"
+	flock 3
+	echo $$ >"$pid"
+fi
 
 
 ## Interruptable (by signals) sleep function hack
@@ -165,14 +167,14 @@ while :; do
 		bg_list_update=true
 	fi
 	[[ -z "$bg_list_update" ]] &&\
-	for dir in "${bg_dirs[@]}"; do
+	for dir in "${bg_paths[@]}"; do
 		if [[ "$(stat --printf=%Y "$dir")" -gt "$bg_list_ts" ]]; then
 			bg_list_update=true
 			break
 		fi
 	done
 	if [[ -n "$bg_list_update" ]]; then
-		readarray -t bg_list < <(find "${bg_dirs[@]}" -type f \( -name '*.jpg' -o -name '*.png' \))
+		readarray -t bg_list < <(find "${bg_paths[@]}" -type f \( -name '*.jpg' -o -name '*.png' \))
 		bg_count="${#bg_list[@]}"
 	fi
 	if [[ "$bg_count" -eq 0 ]]; then
