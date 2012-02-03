@@ -13,9 +13,9 @@ from __future__ import unicode_literals, print_function
 # 	(gimp-quit TRUE)' 2>&1 1>/dev/null | tee log | grep WS-ERR
 
 __author__ = 'Mike Kazantsev'
-__copyright__ = 'Copyright 2011, Mike Kazantsev'
+__copyright__ = 'Copyright 2011-2012, Mike Kazantsev'
 __license__ = 'Public Domain'
-__version__ = '0.11'
+__version__ = '0.12'
 __email__ = 'mk.fraggod@gmail.com'
 __status__ = 'beta'
 __blurb__ = 'LQRify to desktop'
@@ -172,8 +172,9 @@ def lqr_wpset(path):
 	meta_base = { 'title': os.path.basename(path),
 		'created': datetime.fromtimestamp(os.stat(path).st_mtime),
 		'original size': '{0} x {1}'.format(*op.attrgetter('width', 'height')(image)) }
-	meta = process_tags(path)\
-		if set(image.parasite_list())\
+	try: meta = image.parasite_list()
+	except gimp.error: meta = list() # "gimp.error: could not list parasites on image"
+	meta = process_tags(path) if set(meta)\
 			.intersection(['icc-profile', 'jpeg-settings',
 				'exif-data', 'gimp-metadata'])\
 		else dict()
@@ -341,9 +342,7 @@ register(
 	'lqr_wpset',
 	__blurb__, __description__,
 	__author__, __copyright__,
-	'2011',
-	'<Toolbox>/Xtns/Languages/Python-Fu/LQRify to desktop',
-	'RGB*',
+	'2012', 'LQRify to desktop', 'RGB*',
 	[(PF_FILE, 'file_name', 'Input file name', '')], [],
 	lqr_wpset )
 main()
