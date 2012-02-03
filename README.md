@@ -40,8 +40,8 @@ Thus, some stuff must be installed for the tool to work:
 
   * [bash](http://gnu.org/software/bash/)
   * [python (2.6 or 2.7, not 3.X)](http://python.org/)
-  * [pygtk (2.X series, but maybe 3.X will work as well)](http://www.pygtk.org/)
-  * [gimp (2.6 or later, with python plugins support)](http://gimp.org/)
+  * [pygtk (2.X series, haven't tested with/ported to gi)](http://www.pygtk.org/)
+  * [gimp (2.6, 2.7 or later, with python plugins support)](http://gimp.org/)
   * [gimp-lqr-plugin](http://liquidrescale.wikidot.com/)
 
 Everything aside from gimp-lqr-plugin is probably present in any decent
@@ -50,7 +50,9 @@ desktop linux system.
 Optional stuff (will be used if available):
 
   * [xprintidle tool](http://www.dtek.chalmers.se/~henoch/text/xprintidle.html)
-    - to cycle images only when system is not idle (1h threshold, by default).
+    ([debian mirror](http://packages.debian.org/sid/xprintidle), hosts sources
+    as well) - to cycle images only when system is not idle (1h threshold, by
+    default).
 
   * [pyexiv2 python module](http://tilloy.net/dev/pyexiv2/) - to use information
     from EXIF/XMP/IDC tags in labels.
@@ -98,11 +100,12 @@ To quote the command itself:
     Optional --daemon flag starts instance in the background (unless --no-fork is
     also specified), and picks a new image every 10800s afterwards.
 
-    Some options can be given instead of paths to control already-running
-    instance (started with --daemon flag):
+    Some options (or their one-letter equivalents) can be given instead of paths to
+    control already-running instance (started with --daemon flag):
       --next       cycle to then next background immediately.
       --blacklist  add current background to blacklist (skip it from now on).
       --kill       stop currently running instance.
+      --current    echo current background image name
       --help       this text
 
     Various paths and parameters are specified in the beginning of this script.
@@ -163,4 +166,5 @@ Links
 
   * [Project homepage](http://desktop-aura.sf.net/)
   * [Sourceforge project page](http://sf.net/projects/desktop-aura/)
+  * [github repository](https://github.com/mk-fg/aura/)
   * [File releases (aka "Downloads")](http://sf.net/projects/desktop-aura/files/)
