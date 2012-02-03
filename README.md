@@ -152,6 +152,9 @@ I just put something like `aura -d ~/media/picz` into my ~/.xinitrc.
 Copying
 --------------------
 
+Images used in html documentation are subject to a copyright and used with
+author's permission.
+
 Code is a public domain, feel free to hack and reuse it as you see fit.
 
 
@@ -161,4 +164,3 @@ Links
   * [Project homepage](http://desktop-aura.sf.net/)
   * [Sourceforge project page](http://sf.net/projects/desktop-aura/)
   * [File releases (aka "Downloads")](http://sf.net/projects/desktop-aura/files/)
-
