@@ -79,6 +79,7 @@ $(document).ready(function() {
 <ul>
 <li><a href="http://sf.net/projects/desktop-aura/">Sourceforge project page</a></li>
 <li><a href="http://sf.net/projects/desktop-aura/files/">File releases (aka "Downloads")</a></li>
+<li><a href="https://github.com/mk-fg/aura/">github repository</a></li>
 <li><a href="http://sf.net/p/desktop-aura/discussion/">Discussion page - any questions / feedback are welcome</a></li>
 <li><a href="http://sf.net/p/desktop-aura/tickets/">Bug / issue tracker for anything that will go wrong</a></li>
 </ul>
@@ -167,8 +168,8 @@ $(document).ready(function() {
 <ul>
 <li><a href="http://gnu.org/software/bash/">bash</a></li>
 <li><a href="http://python.org/">python (2.6 or 2.7, not 3.X)</a></li>
-<li><a href="http://www.pygtk.org/">pygtk (2.X series, but maybe 3.X will work as well)</a></li>
-<li><a href="http://gimp.org/">gimp (2.6 or later, with python plugins support)</a></li>
+<li><a href="http://www.pygtk.org/">(2.X series, haven't tested with/ported to gi)</a></li>
+<li><a href="http://gimp.org/">gimp (2.6, 2.7 or later, with python plugins support)</a></li>
 <li><a href="http://liquidrescale.wikidot.com/">gimp-lqr-plugin</a></li>
 </ul>
 
@@ -177,7 +178,7 @@ $(document).ready(function() {
 <p>Optional stuff (will be used if available):</p>
 
 <ul>
-<li><a href="http://www.dtek.chalmers.se/~henoch/text/xprintidle.html">xprintidle tool</a> - to cycle images only when system is not idle (1h threshold, by default).</li>
+<li><a href="http://www.dtek.chalmers.se/~henoch/text/xprintidle.html">xprintidle tool</a> (<a href="http://packages.debian.org/sid/xprintidle">debian mirror</a>, hosts sources as well) - to cycle images only when system is not idle (1h threshold, by default).</li>
 <li><a href="http://tilloy.net/dev/pyexiv2/">pyexiv2 python module</a> - to use information from EXIF/XMP/IDC tags in labels.</li>
 <li><a href="http://code.google.com/p/python-colormath/">colormath python module</a> - to pick the most contrast color for label using CIEDE2000 (simplier algorithm will be used otherwise).</li>
 </ul>
@@ -212,11 +213,12 @@ Set background image, randomly selected from the specified paths.
 Optional --daemon flag starts instance in the background (unless --no-fork is
 also specified), and picks a new image every 10800s afterwards.
 
-Some options can be given instead of paths to control already-running
-instance (started with --daemon flag):
+Some options (or their one-letter equivalents) can be given instead of paths to
+control already-running instance (started with --daemon flag):
   --next       cycle to then next background immediately.
   --blacklist  add current background to blacklist (skip it from now on).
   --kill       stop currently running instance.
+  --current    echo current background image name
   --help       this text
 
 Various paths and parameters are specified in the beginning of this script.
