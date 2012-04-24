@@ -41,7 +41,7 @@ Thus, some stuff must be installed for the tool to work:
   * [bash](http://gnu.org/software/bash/)
   * [python (2.6 or 2.7, not 3.X)](http://python.org/)
   * [pygtk (2.X series, haven't tested with/ported to gi)](http://www.pygtk.org/)
-  * [gimp (2.6, 2.7 or later, with python plugins support)](http://gimp.org/)
+  * [gimp (2.6-2.8 or later, with python plugin support)](http://gimp.org/)
   * [gimp-lqr-plugin](http://liquidrescale.wikidot.com/)
 
 Everything aside from gimp-lqr-plugin is probably present in any decent
