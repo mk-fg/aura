@@ -158,7 +158,8 @@ Copying
 Images used in html documentation are subject to a copyright and used with
 author's permission.
 
-Code is a public domain, feel free to hack and reuse it as you see fit.
+Code is released under a permissive WTFPL license, feel free to hack and reuse
+it as you see fit.
 
 
 Links
