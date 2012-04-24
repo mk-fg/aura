@@ -201,11 +201,11 @@ while :; do
 
 		# Actual bg setting
 		log "$log_err" "--- ${ts}: ${bg}"
-		err=$($gimp_cmd -ib '(begin
-				(catch (gimp-message "WPS-ERR:gimp_error")
-					(gimp-message-set-handler ERROR-CONSOLE)
-					(python-fu-lqr-wpset RUN-NONINTERACTIVE "'"${bg}"'"))
-				(gimp-quit TRUE))' 2>&1 1>/dev/null |
+		err=$($gimp_cmd -ib "(catch\
+					(gimp-message \"WPS-ERR:gimp_error\")\
+					(gimp-message-set-handler ERROR-CONSOLE)\
+					(python-fu-lqr-wpset RUN-NONINTERACTIVE \"${bg}\"))\
+				(gimp-quit TRUE)" 2>&1 1>/dev/null |
 			tee -a "$log_err" | grep -o 'WPS-ERR:.\+')
 		err="${err#*:}"
 	done
