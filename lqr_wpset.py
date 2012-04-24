@@ -14,8 +14,8 @@ from __future__ import unicode_literals, print_function
 
 __author__ = 'Mike Kazantsev'
 __copyright__ = 'Copyright 2011-2012, Mike Kazantsev'
-__license__ = 'Public Domain'
-__version__ = '0.12'
+__license__ = 'WTFPL'
+__version__ = '0.13'
 __email__ = 'mk.fraggod@gmail.com'
 __status__ = 'beta'
 __blurb__ = 'LQRify to desktop'
