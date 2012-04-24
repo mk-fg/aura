@@ -197,7 +197,7 @@ while :; do
 		(( bg_used += 1 ))
 
 		# Blacklist check
-		grep -qP "^(.*/)?$(basename "$bg")$" "$blacklist" && continue
+		grep -q "^\(.*/\)\?$(basename "$bg")$" "$blacklist" && continue
 
 		# Actual bg setting
 		log "$log_err" "--- ${ts}: ${bg}"
@@ -206,7 +206,7 @@ while :; do
 					(gimp-message-set-handler ERROR-CONSOLE)
 					(python-fu-lqr-wpset RUN-NONINTERACTIVE "'"${bg}"'"))
 				(gimp-quit TRUE))' 2>&1 1>/dev/null |
-			tee -a "$log_err" | grep -oP 'WPS-ERR:\S+')
+			tee -a "$log_err" | grep -o 'WPS-ERR:.\+')
 		err="${err#*:}"
 	done
 
