@@ -140,6 +140,74 @@ def set_background(path):
 	win.draw_pixbuf(gdk.GC(win), pb, 0, 0, 0, 0, -1, -1)
 
 
+
+class PDB(object):
+	'''Compatibility layer for different versions of gimp pdb,
+		mostly just to get rid of gimp-2.7 (GIMP_UNSTABLE) warnings.'''
+	## List deprecated calls (and replacements):
+	# awk 'match($0, /called deprecated procedure (\S*)\./, old) {
+	# 	getline; new[1]=""; match($0, /should call (\S+)/, new)
+	# 	print old[1], new[1] }' ~/.aura/picker.log | sort -u
+	## (~/.aura/picker.log here is just a log with gimp output)
+
+	def __init__(self): self._pdb, self._ctx = pdb, dict() # fake context for gimp < 2.7
+	def __getattr__(self, k): return getattr(self._pdb, k)
+
+	## gimp-image-scale (2.7) -> gimp-image-scale-full
+	def gimp_context_set_interpolation(self, val):
+		if gimp.version >= (2, 7, 0):
+			return self._pdb.gimp_context_set_interpolation(val)
+		else: self._ctx['interpolation'] = val
+	def gimp_image_scale(self, image, w, h):
+		if gimp.version >= (2, 7, 0):
+			return self._pdb.gimp_image_scale(image, w, h)
+		else:
+			return self.gimp_image_scale_full(
+				image, w, h, self._ctx['interpolation'] )
+
+	# gimp-image-select-rectangle (2.7) -> gimp-rect-select
+	def gimp_context_set_feather(self, val):
+		if gimp.version >= (2, 7, 0):
+			return self._pdb.gimp_context_set_feather(val)
+		else:
+			self._ctx['feather'] = val
+			if not val: self._ctx['feather_radius'] = 0, 0
+	def gimp_context_set_feather_radius(self, x, y):
+		if gimp.version >= (2, 7, 0):
+			return self._pdb.gimp_context_set_feather_radius(x, y)
+		else: self._ctx['feather_radius'] = x, y
+	def gimp_image_select_rectangle(self, image, o, x, y, w, h):
+		if gimp.version >= (2, 7, 0):
+			return self._pdb.gimp_image_select_rectangle(image, o, x, y, w, h)
+		else:
+			# 1d feather_radius for gimp_rect_select in gimp <= 2.6, hence min()
+			return self.gimp_rect_select( image, x, y, w, h,
+				o, self._ctx['feather'], min(self._ctx['feather_radius']) )
+
+	# gimp-image-insert-vectors (2.7) -> gimp-image-add-vectors
+	def gimp_image_insert_vectors(self, image, vectors, parent, pos):
+		if gimp.version >= (2, 8, 0):
+			# 2.7.0 has gimp-image-insert-vectors, but fails with parent=None
+			return self._pdb.gimp_image_insert_vectors(image, vectors, parent, pos)
+		else:
+			return self._pdb.gimp_image_add_vectors(image, vectors, pos)
+
+	# gimp-image-select-item (2.7) -> gimp-vectors-to-selection
+	def gimp_context_set_antialias(self, val):
+		if gimp.version >= (2, 7, 0):
+			return self._pdb.gimp_context_set_antialias(val)
+		else: self._ctx['antialias'] = val
+	def gimp_image_select_item(self, image, op, item):
+		if gimp.version >= (2, 7, 0):
+			return self._pdb.gimp_image_select_item(image, op, item)
+		else:
+			return self._pdb.gimp_vectors_to_selection( path,
+				CHANNEL_OP_REPLACE, self._ctx['antialias'],
+				self._ctx['feather'], *self._ctx['feather_radius'] )
+
+pdb = PDB()
+
+
 def lqr_wpset(path):
 	image = pdb.gimp_file_load(path, path)
 	layer_image = image.active_layer
@@ -204,8 +272,8 @@ def lqr_wpset(path):
 			(image.width - (image.height - h) * aspects[1], h)\
 			if aspects[1] > aspects[0] else\
 			(w, image.height - (image.width - w) / aspects[0]) )
-		pdb.gimp_image_scale_full( image,
-			new_size[0], new_size[1], INTERPOLATION_CUBIC )
+		pdb.gimp_context_set_interpolation(INTERPOLATION_CUBIC)
+		pdb.gimp_image_scale(image, new_size[0], new_size[1])
 	# All but the first 4 parameters are defaults, taken from batch-gimp-lqr.scm
 	pdb.plug_in_lqr( image, layer_image, w, h,
 		0, 1000, 0, 1000, 0, 0, 1, 150, 1, 1, 0, 0, 3, 0, 0, 0, 0, 1, '', '', '', '' )
@@ -242,10 +310,12 @@ def lqr_wpset(path):
 	label_geom = label_offset + tuple( # (offsets + dimensions)
 		max((g[i] + g[2+i] - label_offset[i]) for g in geoms)
 		for i,geoms in enumerate([label_geom]*2) )
-	pdb.gimp_rect_select( image,
+	pdb.gimp_context_set_feather(False)
+	pdb.gimp_context_set_feather_radius(0, 0)
+	pdb.gimp_image_select_rectangle(
+		image, CHANNEL_OP_REPLACE,
 		label_geom[0], label_geom[1],
-		label_geom[2], label_geom[3],
-		CHANNEL_OP_REPLACE, False, 0 )
+		label_geom[2], label_geom[3] )
 	label_bg_color = tuple(
 		int(round(pdb.gimp_histogram(layer_image, channel, 0, 255)[0], 0)) # mean intensity value
 		for channel in [HISTOGRAM_RED, HISTOGRAM_GREEN, HISTOGRAM_BLUE] )
@@ -257,8 +327,10 @@ def lqr_wpset(path):
 	for layer in label_layers:
 		pdb.gimp_text_layer_set_color(layer, label_fg_color)
 		path = pdb.gimp_vectors_new_from_text_layer(image, layer)
-		pdb.gimp_image_add_vectors(image, path, -1)
-		pdb.gimp_vectors_to_selection(path, CHANNEL_OP_REPLACE, True, False, 0, 0)
+		pdb.gimp_image_insert_vectors(image, path, None, -1)
+		pdb.gimp_context_set_antialias(True)
+		pdb.gimp_context_set_feather(False)
+		pdb.gimp_image_select_item(image, CHANNEL_OP_REPLACE, path)
 		pdb.gimp_selection_grow(image, 1), pdb.gimp_selection_border(image, 1)
 		pdb.gimp_edit_fill(label_outline, BACKGROUND_FILL)
 	# Meld all the layers together
