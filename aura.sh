@@ -14,6 +14,7 @@ log_err="$wps_dir"/picker.log
 log_hist="$wps_dir"/history.log
 log_curr="$wps_dir"/current
 pid="$wps_dir"/picker.pid
+hook_onchange="$wps_dir"/hook.onchange
 
 
 ## Since pid can be re-used (and it's surprisingly common), pidfile lock is also checked
@@ -216,6 +217,9 @@ while :; do
 		sleep_int "$recheck"
 		continue
 	fi
+
+	# Try running the hook script
+	[[ -x "$hook_onchange" ]] && "$hook_onchange"
 
 	# History/current entry update and main cycle delay
 	log "$log_hist" "${ts} (id: ${bg_n}): ${bg}"
