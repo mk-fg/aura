@@ -36,6 +36,8 @@ with_pid() {
 action=
 no_fork=
 reexec=
+urandom=
+
 result=0
 while [[ -n "$1" ]]; do
 	case "$1" in
@@ -124,6 +126,12 @@ if [[ "$action" = daemon ]]; then
 	echo $$ >"$pid"
 fi
 
+# Try to use /dev/urandom, if available,
+#  because $RANDOM in bash is limited to 0-32k integer range.
+# Apart from hard-limit on image selection, it also introduces huge rounding bias.
+which od &>/dev/null && [[ -e /dev/urandom ]]\
+	&& od -An -tu4 -w4 -N4 /dev/urandom >/dev/null && urandom=true
+
 
 ## Interruptable (by signals) sleep function hack
 sleep_int() {
@@ -188,8 +196,9 @@ while :; do
 	ts="$(date --rfc-3339=seconds)"
 	err=next
 	while [[ "$err" = next && "$bg_count" -gt "$bg_used" ]]; do
-		# Random bg selection
-		(( bg_n=RANDOM%(bg_count+1) ))
+		# Random bg selection (with some rounding bias, hopefully insignificant)
+		[[ -n "$urandom" ]] && randint=$(od -An -tu4 -w4 -N4 /dev/urandom) || randint=$RANDOM
+		(( bg_n=randint%(bg_count+1) ))
 		bg="${bg_list[$bg_n]}"
 		[[ -z "$bg" ]] && continue # not particulary good idea
 
