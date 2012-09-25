@@ -118,10 +118,11 @@ def set_background(path):
 			'/desktop/gnome/background/picture_filename', path )
 	except ImportError: pass
 
-	## Xfconf (via dbus interface) - XFCE/xfdesktop
 	try: import dbus
 	except ImportError: pass
 	else:
+
+		## Xfconf (via dbus interface) - XFCE/xfdesktop
 		try:
 			xfconf = dbus.Interface(
 				dbus.SessionBus().get_object(
@@ -129,6 +130,16 @@ def set_background(path):
 				dbus_interface='org.xfce.Xfconf' )
 			for k,v in xfconf.GetAllProperties('xfce4-desktop', '/backdrop').iteritems():
 				if k.endswith('/image-path'): xfconf.SetProperty('xfce4-desktop', k, path)
+		except dbus.exceptions.DBusException: pass # no property/object/interface/etc
+
+		## E17 edbus interface
+		try:
+			edbus = dbus.SessionBus().get_object(
+					'org.enlightenment.wm.service', '/org/enlightenment/wm/RemoteObject' )
+			dxc, dyc = edbus.GetVirtualCount(dbus_interface='org.enlightenment.wm.Desktop')
+			edbus = dbus.Interface( edbus,
+				dbus_interface='org.enlightenment.wm.Desktop.Background' )
+			for dx, dy in it.product(xrange(dxc), xrange(dyc)): edbus.Add(0, 0, dx, dy, path)
 		except dbus.exceptions.DBusException: pass # no property/object/interface/etc
 
 	## Paint X root window via pygtk
