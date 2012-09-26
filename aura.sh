@@ -112,11 +112,11 @@ mkdir -p "$wps_dir"
 
 if [[ -z "$reexec" ]]; then
 	if [[ "$action" = daemon && -z "$no_fork" ]]; then
-		setsid "$0" "$@" &
+		setsid "$0" -x "$@" &
 		disown
 		exit 0
 	fi
-	[[ $(ps -o 'pgid=' $$) -ne $$ ]] && exec setsid "$0" "$@"
+	[[ $(ps -o 'pgid=' $$) -ne $$ ]] && exec setsid "$0" -x "$@"
 fi
 
 if [[ "$action" = daemon ]]; then
