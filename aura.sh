@@ -35,6 +35,7 @@ with_pid() {
 ## Commanline processing
 action=
 no_fork=
+no_init=
 reexec=
 urandom=
 
@@ -43,6 +44,7 @@ while [[ -n "$1" ]]; do
 	case "$1" in
 		-d|--daemon) action=daemon ;;
 		--no-fork) no_fork=true ;;
+		--no-init) no_init=true ;;
 		-n|--next)
 			action=break
 			with_pid kill -HUP
@@ -70,13 +72,14 @@ while [[ -n "$1" ]]; do
 			cat <<EOF
 Usage:
   $(basename "$0") paths...
-  $(basename "$0") ( -d | --daemon ) [ --no-fork ] paths...
+  $(basename "$0") ( -d | --daemon ) [ --no-fork ] [ --no-init ] paths...
   $(basename "$0") [ -n | --next ] [ -b | --blacklist ] [ -k | --kill ] [ -h | --help ]
 
 Set background image, randomly selected from the specified paths.
 
 Optional --daemon flag starts instance in the background (unless --no-fork is
-also specified), and picks a new image every ${interval}s afterwards.
+also specified), and picks/sets a new image on start (unless --no-init is specified),
+and every ${interval}s afterwards.
 
 Some options (or their one-letter equivalents) can be given instead of paths to
 control already-running instance (started with --daemon flag):
@@ -194,7 +197,7 @@ while :; do
 
 	# bg update
 	ts="$(date --rfc-3339=seconds)"
-	err=next
+	[[ -z "$no_init" ]] && err=next || err=
 	while [[ "$err" = next && "$bg_count" -gt "$bg_used" ]]; do
 		# Random bg selection (with some rounding bias, hopefully insignificant)
 		[[ -n "$urandom" ]] && randint=$(od -An -tu4 -w4 -N4 /dev/urandom) || randint=$RANDOM
@@ -228,9 +231,10 @@ while :; do
 	fi
 
 	# Try running the hook script
-	[[ -x "$hook_onchange" ]] && "$hook_onchange"
+	[[ -z "$no_init" && -x "$hook_onchange" ]] && "$hook_onchange"
 
 	# History/current entry update and main cycle delay
+	no_init= # reset oneshot --no-init flag
 	log "$log_hist" "${ts} (id: ${bg_n}): ${bg}"
 	echo "$(basename "${bg}")" >"$log_curr"
 	sleep_int "$interval"
