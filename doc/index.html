@@ -64,14 +64,18 @@ $(document).ready(function() {
 <ul>
 <li>picking image randomly from specified paths;</li>
 <li>skipping too small images and images with too different aspect rate;</li>
-<li>rescaling it in a clever ways (crop solid margins, resize with cubic, then <a href="http://liquidrescale.wikidot.com/en:examples">liquid rescale algorithm</a>) to fit the desktop with as little quality loss as possible;</li>
+<li>rescaling it in a clever ways (crop solid margins, resize with cubic,
+then <a href="http://liquidrescale.wikidot.com/en:examples">liquid rescale
+algorithm</a>) to fit the desktop with as little quality loss as possible;</li>
 <li>labelling images (that is, rendering the label in the corner) using embedded tags;</li>
 <li>daemonizing to pick new image on a time-basis or when triggered (by SIGHUP or cli);</li>
 <li>keeping track of used images, blacklisting.</li>
 </ul>
 </p>
 
-<p>Intended usage is to point it to the path(s) with random image collection(s) and let it adjust any suitable ones to the current screen size. It has no gui and no capabilities to dowload images from anywhere.</p>
+<p>Intended usage is to point it to the path(s) with random image collection(s)
+and let it adjust any suitable ones to the current screen size. It has no gui
+and no capabilities to dowload images from anywhere.</p>
 
 
 <h2 id="quck_links">Quick links</h2>
@@ -87,8 +91,16 @@ $(document).ready(function() {
 
 <h2 id="how_it_works">How it works</h2>
 
-<p>Main process is actually very simple, to the extent that it's written in bash (which has negligible memory footprint), but the main magic is in the image processing part.</p>
-<p>All the wallpaper-setters I've seen doesn't seem to consider this part important enough, focusing instead on providing GUI and image fetching mechanisms, but if you have a local collection and don't need guis, they're usually not much better than <a href="http://derf.homelinux.org/projects/feh/">feh</a> or ten-liner python script.</p>
+<p>Main process is actually very simple, to the extent that it's written in bash
+(which has negligible memory footprint), but the main magic is in the image
+processing part.</p>
+
+<p>All the wallpaper-setters I've seen doesn't seem to consider this part
+important enough, focusing instead on providing GUI and image fetching
+mechanisms, but if you have a local collection and don't need guis, they're
+usually not much better
+than <a href="http://derf.homelinux.org/projects/feh/">feh</a> or ten-liner
+python script.</p>
 
 <p>To see what I mean, let's take a simple case of a laptop screen (1366x768) and an image (960x660):</p>
 <div class="demo">
@@ -136,40 +148,81 @@ $(document).ready(function() {
 <p>To see all the intermediate steps in more detail, let's get back to image one:</p>
 <a class="fullview" href="D_I_E.jpg"><img class="standalone" src="D_I_E__l.jpg" /></a>
 
-</p>Obviously, image can be at least cropped out of solid margins (yet none of existing tools seem to care), but if you'll load it into GIMP and use autocrop, it won't really change anything, because (surprise!) margins are not solid at all: they usually have the noise or some minor texture, as a matter of fact, so you'd have to do the fuzzy-solid cropping, at least.</p>
-<p>And the tool does that, no problem. Actual technique I've used was to create a simple mask-layer, adjust it's contrast and use solid-crop feature to determine the cropped margins, then just use the same values on the original layer.</p>
+</p>Obviously, image can be at least cropped out of solid margins (yet none of
+existing tools seem to care), but if you'll load it into GIMP and use autocrop,
+it won't really change anything, because (surprise!) margins are not solid at
+all: they usually have the noise or some minor texture, as a matter of fact, so
+you'd have to do the fuzzy-solid cropping, at least.</p>
+<p>And the tool does that, no problem. Actual technique I've used was to create
+a simple mask-layer, adjust it's contrast and use solid-crop feature to
+determine the cropped margins, then just use the same values on the original
+layer.</p>
 <a class="fullview" href="D_I_E__crop.jpg"><img class="standalone" src="D_I_E__crop__l.jpg" /></a>
 
-<p>It certainly is better, but still in no way fits nicely to 16:9 screen with larger resolution, and this is the point where LQR (liquid resizing aka seam carving) algorithm comes into play.</p>
-<p>LQR drops/scales the most featureless parts of an image, so all the important parts could be left untouched.</p>
-<p>I highly recommend to spend a minute or two to skim over this <a href="http://www.youtube.com/watch?v=vIFCV2spKtg">YouTube video</a>, showing what the algorithm is capable of and explaining how it does that. You'll probably never look at the usual Cubic and Sinc the same way again ;)</p>
+<p>It certainly is better, but still in no way fits nicely to 16:9 screen with
+larger resolution, and this is the point where LQR (liquid resizing aka seam
+carving) algorithm comes into play.</p>
+<p>LQR drops/scales the most featureless parts of an image, so all the important
+parts could be left untouched.</p>
+<p>I highly recommend to spend a minute or two to skim over
+this <a href="http://www.youtube.com/watch?v=vIFCV2spKtg">YouTube video</a>,
+showing what the algorithm is capable of and explaining how it does that. You'll
+probably never look at the usual Cubic and Sinc the same way again ;)</p>
 <a class="fullview" href="D_I_E__lqr.jpg"><img class="standalone" src="D_I_E__lqr__l.jpg" /></a>
 
-<p>As you can see, black leftovers at the bottom magically disappeared, leaving the original label intact, which is a superior result than can be produced with simple matrix interpolations.</p>
+<p>As you can see, black leftovers at the bottom magically disappeared, leaving
+the original label intact, which is a superior result than can be produced with
+simple matrix interpolations.</p>
 
-<p>Since most of my images come from the sites like <a href="http://www.deviantart.com/">DeviantArt</a> (I actually aggregate interesting (to me) channels from there to this feed), which make it easy to track authors, most time when I see really cool artwork, I like to know who made it and if there's more of such awesomeness (and there usually is!).</p>
-<p>So a filename is a nice thing to see, at least. Author name could be there, you can maybe look up an image by it, if it really corresponds to image title in an obvious way.</p>
-<p>But most images also come with an embedded tags, like <a href="http://en.wikipedia.org/wiki/EXIF">EXIF</a> or <a href="http://en.wikipedia.org/wiki/Extensible_Metadata_Platform">XMP</a>, and all the info like author and title is there in the sane state, so these are used in the label if present in a file, overriding filename/mtime defaults:</p>
+<p>Since most of my images come from the sites
+like <a href="http://www.deviantart.com/">DeviantArt</a> (I actually aggregate
+interesting (to me) channels from there to this feed), which make it easy to
+track authors, most time when I see really cool artwork, I like to know who made
+it and if there's more of such awesomeness (and there usually is!).</p>
+<p>So a filename is a nice thing to see, at least. Author name could be there,
+you can maybe look up an image by it, if it really corresponds to image title in
+an obvious way.</p>
+<p>But most images also come with an embedded tags,
+like <a href="http://en.wikipedia.org/wiki/EXIF">EXIF</a>
+or <a href="http://en.wikipedia.org/wiki/Extensible_Metadata_Platform">XMP</a>,
+and all the info like author and title is there in the sane state, so these are
+used in the label if present in a file, overriding filename/mtime defaults:</p>
 <a class="fullview" href="D_I_E__label.jpg"><img class="standalone" src="D_I_E__label.jpg" /></a>
 
 <p>Note that label color is a bit of PITA and not quite easy to get right reliably.<p>
-<p>Tool calculates label size, takes the average color in the area where it'll be rendered and picks the most different (<a href="http://en.wikipedia.org/wiki/Color_difference#CIEDE2000">Delta E, CIEDE2000 algorithm</a>) color from the predefined set of a brightest ones.</p>
+<p>Tool calculates label size, takes the average color in the area where it'll
+be rendered and picks the most different
+(<a href="http://en.wikipedia.org/wiki/Color_difference#CIEDE2000">Delta E,
+CIEDE2000 algorithm</a>) color from the predefined set of a brightest ones.</p>
 
-<p>Produced image is stored to "/tmp/.lqr_wpset_bg.*.png" (can be changed in <a href="#lqr_wpset_head">lqr_wpset head</a>) and then set as a background using either python gconf interface (for gnome), xfconf (xfce) via dbus interface or just by drawing it to an X root window via pygtk. To set background on modern KDE, use <a href="http://kde-look.org/content/show.php/Scripted+Image+Wallpaper+Plugin?content=115147">scripted image wallpaper plugin</a> with a simple shell script, containing just "echo /tmp/.lqr_wpset_bg.*.png" line (note no quotes, so shell will expand the asterisk).<p>
+<p>Produced image is stored to "/tmp/.lqr_wpset_bg.*.png" (can be changed
+in <a href="#lqr_wpset_head">lqr_wpset head</a>) and then set as a background
+using either python gconf interface (for gnome), xfconf (xfce) via dbus
+interface or just by drawing it to an X root window via pygtk. To set background
+on modern KDE,
+use <a href="http://kde-look.org/content/show.php/Scripted+Image+Wallpaper+Plugin?content=115147">scripted
+image wallpaper plugin</a> with a simple shell script, containing just "echo
+/tmp/.lqr_wpset_bg.*.png" line (note no quotes, so shell will expand the
+asterisk).<p>
 
-<p>So far, results don't make me flinch in disgust at horribly-mangled images, but if there's a room for improvement, guess I'll spot it over time, and will certainly appreciate any suggestions, since I don't really work with graphics at all, and may not know even some basic concepts every artist and designer are probably aware of.</p>
+<p>So far, results don't make me flinch in disgust at horribly-mangled images,
+but if there's a room for improvement, guess I'll spot it over time, and will
+certainly appreciate any suggestions, since I don't really work with graphics at
+all, and may not know even some basic concepts every artist and designer are
+probably aware of.</p>
 
 
 <h2 id="installation">Installation</h2>
 
-<p>While "aura" script is pure bash, all image manipulations are performed from a python script ("lqr_wpset.py") using gimp's python-fu.</p>
+<p>While "aura" script is pure bash, all image manipulations are performed from
+a python script ("lqr_wpset.py") using gimp's python-fu.</p>
 <p>Thus, some stuff must be installed for the tool to work:</p>
 
 <ul>
 <li><a href="http://gnu.org/software/bash/">bash</a></li>
 <li><a href="http://python.org/">python (2.6 or 2.7, not 3.X)</a></li>
 <li><a href="http://www.pygtk.org/">(2.X series, haven't tested with/ported to gi)</a></li>
-<li><a href="http://gimp.org/">gimp (2.6, 2.7 or later, with python plugins support)</a></li>
+<li><a href="http://gimp.org/">gimp (2.6-2.8 or later, with python plugins support)</a></li>
 <li><a href="http://liquidrescale.wikidot.com/">gimp-lqr-plugin</a></li>
 </ul>
 
@@ -178,21 +231,47 @@ $(document).ready(function() {
 <p>Optional stuff (will be used if available):</p>
 
 <ul>
-<li><a href="http://www.dtek.chalmers.se/~henoch/text/xprintidle.html">xprintidle tool</a> (<a href="http://packages.debian.org/sid/xprintidle">debian mirror</a>, hosts sources as well) - to cycle images only when system is not idle (1h threshold, by default).</li>
-<li><a href="http://tilloy.net/dev/pyexiv2/">pyexiv2 python module</a> - to use information from EXIF/XMP/IDC tags in labels.</li>
-<li><a href="http://code.google.com/p/python-colormath/">colormath python module</a> - to pick the most contrast color for label using CIEDE2000 (simplier algorithm will be used otherwise).</li>
+<li><a href="http://www.dtek.chalmers.se/~henoch/text/xprintidle.html">xprintidle
+tool</a> (<a href="http://packages.debian.org/sid/xprintidle">debian mirror</a>,
+hosts sources as well) - to cycle images only when system is not idle (1h
+threshold, by default).</li>
+<li><a href="http://tilloy.net/dev/pyexiv2/">pyexiv2 python module</a> - to use
+information from EXIF/XMP/IDC tags in labels.</li>
+<li><a href="http://www.freedesktop.org/wiki/Software/DBusBindings#dbus-python">dbus-python
+module</a> - to set background in xfce and enlightenment (e17) window
+managers.</li>
+<li><a href="http://code.google.com/p/python-colormath/">colormath python
+module</a> - to pick the most contrast color for label using CIEDE2000 (simplier
+algorithm will be used otherwise).</li>
 </ul>
 
-<p>These are probably best to get using the package manager, but colormath can be installed with a simple "easy_install colormath" or "pip colormath" command.</p>
+<p>These are probably best to get using the package manager, but colormath
+(pure-python module, no deps) can be installed with a simple "easy_install
+colormath" or "pip colormath" command.</p>
 
-<p>Project files can be downloaded from <a href="http://sf.net/projects/desktop-aura/files/">this page</a>, just one latest .tar.gz will do. Tarball can be extracted with regular double-click from some GUI (like GNOME Nautilus shell, KDE Dolphin, XFCE Thunar, etc), tapping enter on it inside midnight commander or typing "tar xf /path/to/aura-X.Y.tar.gz" in some shell. Inside there are two files beside the ubiquitous "README" - "lqr_wpset.py" and "aura".</p>
+<p>Project files can be downloaded
+from <a href="http://sf.net/projects/desktop-aura/files/">this page</a>, just
+one latest .tar.gz will do. Tarball can be extracted with regular double-click
+from some GUI (like GNOME Nautilus shell, KDE Dolphin, XFCE Thunar, etc),
+tapping enter on it inside midnight commander or typing "tar xf
+/path/to/aura-X.Y.tar.gz" in some shell. Inside there are two files beside the
+ubiquitous "README" - "lqr_wpset.py" and "aura".</p>
 
-<p>Actual "installation" is needed for the gimp plugin (lqr_wpset.py), which should be put into one of gimp plugin directories, like "~/.gimp-2.6/plug-ins/" (other option is usually "/usr/lib/gimp/2.0/plug-ins", but your mileage may vary across distros, read the docs <a href="http://en.wikibooks.org/wiki/GIMP/Installing_Plugins">here</a> or <a href="http://docs.gimp.org/en/gimp-scripting.html#gimp-plugins-install">there</a> if in doubt) and be marked as executable. Here's what I mean:</p>
+<p>Alternatively, newer sources can be checked-out
+from <a href="https://github.com/mk-fg/aura/">github repository</a>.</p>
+
+<p>Actual "installation" is needed for the gimp plugin (lqr_wpset.py), which
+should be put into one of gimp plugin directories, like "~/.gimp-2.8/plug-ins/"
+(other option is usually "/usr/lib/gimp/2.0/plug-ins", but your mileage may vary
+across distros, read the
+docs <a href="http://en.wikibooks.org/wiki/GIMP/Installing_Plugins">here</a>
+or <a href="http://docs.gimp.org/en/gimp-scripting.html#gimp-plugins-install">there</a>
+if in doubt) and be marked as executable. Here's what I mean:</p>
 
 <pre>
-mkdir -p ~/.gimp-2.6/plug-ins/
-cp lqr_wpset.py ~/.gimp-2.6/plug-ins/
-chmod +x ~/.gimp-2.6/plug-ins/lqr_wpset.py
+mkdir -p ~/.gimp-2.8/plug-ins/
+cp lqr_wpset.py ~/.gimp-2.8/plug-ins/
+chmod +x ~/.gimp-2.8/plug-ins/lqr_wpset.py
 </pre>
 
 <p>Bash script itself ("aura") will work from any path, just run it.</p>
@@ -205,13 +284,14 @@ chmod +x ~/.gimp-2.6/plug-ins/lqr_wpset.py
 ~% aura -h
 Usage:
   aura paths...
-  aura ( -d | --daemon ) [ --no-fork ] paths...
+  aura ( -d | --daemon ) [ --no-fork ] [ --no-init ] paths...
   aura [ -n | --next ] [ -b | --blacklist ] [ -k | --kill ] [ -h | --help ]
 
 Set background image, randomly selected from the specified paths.
 
 Optional --daemon flag starts instance in the background (unless --no-fork is
-also specified), and picks a new image every 10800s afterwards.
+also specified), and picks/sets a new image on start (unless --no-init is specified),
+and every 10800s afterwards.
 
 Some options (or their one-letter equivalents) can be given instead of paths to
 control already-running instance (started with --daemon flag):
@@ -245,7 +325,8 @@ log_curr="$wps_dir"/current
 pid="$wps_dir"/picker.pid
 </pre>
 
-<p id="lqr_wpset_head">Also, see the beginning of a python plugin (lqr_wpset) for some image processing options:</p>
+<p id="lqr_wpset_head">Also, see the beginning of a python plugin (lqr_wpset)
+for some image processing options:</p>
 
 <pre>
 max_aspect_diff = 0.7 # 16/9 - 4/3 = 0.444
@@ -270,9 +351,13 @@ result_path = '/tmp/.lqr_wpset_bg.*.png'
 
 <h2 id="copying">Copying</h2>
 
-<p>Artworks on this page (<a href="http://ukitakumuki.deviantart.com/art/D-I-E-5905104">"D I E"</a> and <a href="http://ukitakumuki.deviantart.com/art/AIR-IN-KYOTO-10213909">"AIR IN KYOTO"</a> by Kai Lim) are subject to a copyright and used with author's permission.</p>
+<p>Artworks on this page
+(<a href="http://ukitakumuki.deviantart.com/art/D-I-E-5905104">"D I E"</a>
+and <a href="http://ukitakumuki.deviantart.com/art/AIR-IN-KYOTO-10213909">"AIR
+IN KYOTO"</a> by Kai Lim) are subject to a copyright and used with author's
+permission.</p>
 
-<p>Code is a public domain, feel free to hack and reuse it as you see fit.</p>
-
+<p>Plugin code is released under a permissive WTFPL license, feel free to hack
+and reuse it as you see fit.</p>
 
 </body>
