@@ -13,9 +13,9 @@ from __future__ import unicode_literals, print_function
 # 	(gimp-quit TRUE)' 2>&1 1>/dev/null | tee log | grep WS-ERR
 
 __author__ = 'Mike Kazantsev'
-__copyright__ = 'Copyright 2011-2012, Mike Kazantsev'
+__copyright__ = 'Copyright 2011-2013, Mike Kazantsev'
 __license__ = 'WTFPL'
-__version__ = '0.14'
+__version__ = '0.15'
 __email__ = 'mk.fraggod@gmail.com'
 __status__ = 'beta'
 __blurb__ = 'LQRify to desktop'
@@ -29,6 +29,10 @@ label_colors = [0]*3, [255]*3, (255, 0, 0),\
 	(0, 255, 0), (0, 0, 255), (255, 255, 0), (0, 255, 255) # most contrast one will be chosen
 font_filename = 'URW Palladio L Medium', 16
 font_timestamp = 'URW Palladio L Medium', 11
+
+# Chance of doing a horizontal flip of the image (0 < x < 1.0, 0 - disabled)
+# Is here to add variety, especially with some persistent window placement
+hflip_chance = 0.5
 
 # Asterisk will be replaced by temporary id for created images
 # All files matching the pattern will be a subject to cleanup!
@@ -45,7 +49,7 @@ from datetime import datetime
 from tempfile import mkstemp
 from glob import iglob
 from gtk import gdk
-import os, sys, collections
+import os, sys, collections, random
 
 import re
 re_type = type(re.compile(''))
@@ -288,6 +292,11 @@ def lqr_wpset(path):
 	# All but the first 4 parameters are defaults, taken from batch-gimp-lqr.scm
 	pdb.plug_in_lqr( image, layer_image, w, h,
 		0, 1000, 0, 1000, 0, 0, 1, 150, 1, 1, 0, 0, 3, 0, 0, 0, 0, 1, '', '', '', '' )
+
+	# Do the random horizontal flip of the image layer, if specified
+	if hflip_chance > 0 and random.random() < hflip_chance:
+		pdb.gimp_item_transform_flip_simple(
+			layer_image, ORIENTATION_HORIZONTAL, True, 0 )
 
 	## Render label on top of the image layer
 	# First, render all the the text boxes
