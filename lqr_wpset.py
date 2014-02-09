@@ -13,7 +13,7 @@ from __future__ import unicode_literals, print_function
 # 	(gimp-quit TRUE)' 2>&1 1>/dev/null | tee log | grep WS-ERR
 
 __author__ = 'Mike Kazantsev'
-__copyright__ = 'Copyright 2011-2013, Mike Kazantsev'
+__copyright__ = 'Copyright 2011-2014, Mike Kazantsev'
 __license__ = 'WTFPL'
 __version__ = '0.16'
 __email__ = 'mk.fraggod@gmail.com'
@@ -56,6 +56,7 @@ re_type = type(re.compile(''))
 
 from gimpfu import *
 import gimp
+
 
 def process_tags(path):
 	meta = dict()
@@ -114,7 +115,15 @@ def set_background(path):
 	#  asynchronously, so there's no way of knowing when the image will
 	#  actually be used
 
-	## Gconf - GNOME, XFCE/nautilus and such
+	## GSettings - newer GNOME, Unity
+	# Using gi.repository.Gio here directly is tricky alongside gimp's gtk2
+	from subprocess import call
+	from urllib import quote
+	call([ 'gsettings', 'set',
+		'org.gnome.desktop.background', 'picture-uri',
+		'file://{0}'.format(quote(path)) ])
+
+	## Gconf - older GNOME, XFCE/nautilus and such
 	try:
 		import gconf
 		gconf = gconf.client_get_default()
