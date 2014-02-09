@@ -10,6 +10,7 @@ max_log_size=$(( 1024 * 1024 )) # 1M, current+last files are kept
 gimp_cmd="nice ionice -c3 gimp"
 
 wps_dir=~/.aura
+favelist="$wps_dir"/favelist
 blacklist="$wps_dir"/blacklist
 log_err="$wps_dir"/picker.log
 log_hist="$wps_dir"/history.log
@@ -40,10 +41,12 @@ with_pid() {
 
 ## Commanline processing
 action=
+force_break=
 no_fork=
 no_init=
 reexec=
 urandom=
+bg_paths=()
 
 result=0
 while [[ -n "$1" ]]; do
@@ -51,10 +54,21 @@ while [[ -n "$1" ]]; do
 		-d|--daemon) action=daemon ;;
 		--no-fork) no_fork=true ;;
 		--no-init) no_init=true ;;
+		--favepick)
+			if [[ -z "$2" || ! -d "$2" ]]; then
+				echo >&2 "Not a directory: $2"
+				action=break force_break=true result=1
+			else
+				readarray -t bg_paths < <(sed 's~^[0-9]\+ ~'"${2%/}"'/~' "$favelist")
+			fi ;;
 		-n|--next)
 			action=break
 			with_pid kill -HUP
 			result=$? ;;
+		-f|--fave)
+			action=break
+			printf -v ts '%(%s)T' -1
+			echo "$ts $(cat "$log_curr")" >>"$favelist" ;;
 		-b|--blacklist)
 			action=break
 			echo "$(cat "$log_curr")" >>"$blacklist" ;;
@@ -74,14 +88,18 @@ while [[ -n "$1" ]]; do
 			action=break
 			cat "$log_curr" 2>/dev/null ;;
 		-h|--help)
-			action=break
+			action=break force_break=true
 			cat <<EOF
 Usage:
   $(basename "$0") paths...
+  $(basename "$0") --favepick directory
   $(basename "$0") ( -d | --daemon ) [ --no-fork ] [ --no-init ] paths...
-  $(basename "$0") [ -n | --next ] [ -b | --blacklist ] [ -k | --kill ] [ -h | --help ]
+  $(basename "$0") [ -n | --next ] [ -f | --fave ] \\
+    [ -b | --blacklist ] [ -k | --kill ] [ -h | --help ]
 
 Set background image, randomly selected from the specified paths.
+Option --favepick makes it weighted-random among fave-list (see also --fave).
+Blacklisted paths never get picked (see --blacklist).
 
 Optional --daemon flag starts instance in the background (unless --no-fork is
 also specified), and picks/sets a new image on start (unless --no-init is specified),
@@ -90,6 +108,7 @@ and every ${interval}s afterwards.
 Some options (or their one-letter equivalents) can be given instead of paths to
 control already-running instance (started with --daemon flag):
   --next       cycle to then next background immediately.
+  --fave       give +1 rating (used with --favepick) to current background image.
   --blacklist  add current background to blacklist (skip it from now on).
   --kill       stop currently running instance.
   --current    echo current background image name
@@ -103,11 +122,11 @@ EOF
 	esac
 	shift
 done
-[[ "$action" = break ]] && exit $result
+[[ "$action" = break || -n "$force_break" ]] && exit $result
 
 
 ## Pre-start sanity checks
-bg_paths=( "$@" )
+[[ ${#bg_paths[@]} -eq 0 ]] && bg_paths=( "$@" )
 if [[ ${#bg_paths[@]} -eq 0 ]]; then
 	echo >&2 "Error: no bg paths specified"
 	exit 1

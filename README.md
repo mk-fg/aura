@@ -101,11 +101,15 @@ To quote the command itself:
 
 	~% aura -h
 	Usage:
-	  aura paths...
-	  aura ( -d | --daemon ) [ --no-fork ] [ --no-init ] paths...
-	  aura [ -n | --next ] [ -b | --blacklist ] [ -k | --kill ] [ -h | --help ]
+	  aura.sh paths...
+	  aura.sh --favepick directory
+	  aura.sh ( -d | --daemon ) [ --no-fork ] [ --no-init ] paths...
+	  aura.sh [ -n | --next ] [ -f | --fave ] \
+	    [ -b | --blacklist ] [ -k | --kill ] [ -h | --help ]
 
 	Set background image, randomly selected from the specified paths.
+	Option --favepick makes it weighted-random among fave-list (see also --fave).
+	Blacklisted paths never get picked (see --blacklist).
 
 	Optional --daemon flag starts instance in the background (unless --no-fork is
 	also specified), and picks/sets a new image on start (unless --no-init is specified),
@@ -114,6 +118,7 @@ To quote the command itself:
 	Some options (or their one-letter equivalents) can be given instead of paths to
 	control already-running instance (started with --daemon flag):
 	  --next       cycle to then next background immediately.
+	  --fave       give +1 rating (used with --favepick) to current background image.
 	  --blacklist  add current background to blacklist (skip it from now on).
 	  --kill       stop currently running instance.
 	  --current    echo current background image name

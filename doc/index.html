@@ -12,7 +12,7 @@
 	img.standalone { width: 600px; }
 	img.inline { float: left; width: 400px; }
 	img.inline.small { width: 200px; }
-	img.inline.misc { border: none;  width: 20px; }
+	img.inline.misc { border: none; width: 20px; }
 	div, p { clear: left; }
 	hr { clear: both; }
 	.contents { float: right; border: 3px double silver; padding: 0 2em; }
@@ -283,11 +283,15 @@ chmod +x ~/.gimp-2.8/plug-ins/lqr_wpset.py
 <pre>
 ~% aura -h
 Usage:
-  aura paths...
-  aura ( -d | --daemon ) [ --no-fork ] [ --no-init ] paths...
-  aura [ -n | --next ] [ -b | --blacklist ] [ -k | --kill ] [ -h | --help ]
+  aura.sh paths...
+  aura.sh --favepick directory
+  aura.sh ( -d | --daemon ) [ --no-fork ] [ --no-init ] paths...
+  aura.sh [ -n | --next ] [ -f | --fave ] \
+    [ -b | --blacklist ] [ -k | --kill ] [ -h | --help ]
 
 Set background image, randomly selected from the specified paths.
+Option --favepick makes it weighted-random among fave-list (see also --fave).
+Blacklisted paths never get picked (see --blacklist).
 
 Optional --daemon flag starts instance in the background (unless --no-fork is
 also specified), and picks/sets a new image on start (unless --no-init is specified),
@@ -296,6 +300,7 @@ and every 10800s afterwards.
 Some options (or their one-letter equivalents) can be given instead of paths to
 control already-running instance (started with --daemon flag):
   --next       cycle to then next background immediately.
+  --fave       give +1 rating (used with --favepick) to current background image.
   --blacklist  add current background to blacklist (skip it from now on).
   --kill       stop currently running instance.
   --current    echo current background image name
