@@ -179,6 +179,13 @@ class PDB(object):
 		else:
 			return self.gimp_image_scale_full(
 				image, w, h, self._ctx['interpolation'] )
+	def gimp_item_transform_flip_simple( self,
+			image, flip_type, auto_center, axis, clip_result=False ):
+		if gimp.version >= (2, 7, 0):
+			return self._pdb.gimp_item_transform_flip_simple(image, flip_type, auto_center, axis)
+		else:
+			return self._pdb.gimp_drawable_transform_flip_simple(
+				image, flip_type, auto_center, axis, clip_result )
 
 	# gimp-image-select-rectangle (2.7) -> gimp-rect-select
 	def gimp_context_set_feather(self, val):
@@ -216,7 +223,7 @@ class PDB(object):
 		if gimp.version >= (2, 7, 0):
 			return self._pdb.gimp_image_select_item(image, op, item)
 		else:
-			return self._pdb.gimp_vectors_to_selection( path,
+			return self._pdb.gimp_vectors_to_selection( item,
 				CHANNEL_OP_REPLACE, self._ctx['antialias'],
 				self._ctx['feather'], *self._ctx['feather_radius'] )
 
