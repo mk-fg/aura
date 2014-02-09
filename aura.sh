@@ -1,6 +1,7 @@
 #!/bin/bash
 
-## Options
+### Options start
+
 interval=$(( 3 * 3600 )) # 3h
 recheck=$(( 3600 )) # 1h
 activity_timeout=$(( 30 * 60 )) # 30min
@@ -15,6 +16,11 @@ log_hist="$wps_dir"/history.log
 log_curr="$wps_dir"/current
 pid="$wps_dir"/picker.pid
 hook_onchange="$wps_dir"/hook.onchange
+
+# Resets sleep timer in daemon (if running) after oneshot script invocation
+delay_daemon_on_oneshot_change=true # empty for false
+
+### Options end
 
 
 ## Since pid can be re-used (and it's surprisingly common), pidfile lock is also checked
@@ -136,15 +142,22 @@ which od &>/dev/null && [[ -e /dev/urandom ]]\
 	&& od -An -tu4 -w4 -N4 /dev/urandom >/dev/null && urandom=true
 
 
-## Interruptable (by signals) sleep function hack
+## Interruptable and extendable (by signals) sleep function hack
+trap_action= # set from trap handlers
 sleep_int() {
-	[[ "$action" != daemon ]] && break
+	[[ "$action" != daemon ]] && {
+		[[ -n "$delay_daemon_on_oneshot_change" ]] && with_pid kill -USR1
+		break
+	}
 	sleep "$1" &
 	echo $! >"$pid"
+	trap_action=
 	wait $! &>/dev/null
 	local err=$(( $? - 128 ))
 	[[ "$err" -gt 0 ]] && kill "-${err}" 0
 	echo $$ >"$pid"
+	# Sleep extension via recursion - hopefully this won't get too deep
+	[[ "$trap_action" = timer_reset ]] && sleep_int "$interval"
 }
 
 ## Log update with rotation
@@ -160,7 +173,8 @@ bg_count=0
 bg_used=0
 
 set +m
-trap : HUP # "snap outta sleep" signal
+trap trap_action=next HUP # "snap outta sleep" signal
+trap trap_action=timer_reset USR1 # "reset sleep" signal
 trap "trap 'exit 0' TERM; pkill -g 0" EXIT # cleanup of backgrounded processes
 
 while :; do
