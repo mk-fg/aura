@@ -15,7 +15,7 @@ from __future__ import unicode_literals, print_function
 __author__ = 'Mike Kazantsev'
 __copyright__ = 'Copyright 2011-2013, Mike Kazantsev'
 __license__ = 'WTFPL'
-__version__ = '0.15'
+__version__ = '0.16'
 __email__ = 'mk.fraggod@gmail.com'
 __status__ = 'beta'
 __blurb__ = 'LQRify to desktop'
@@ -355,6 +355,16 @@ def lqr_wpset(path):
 		pdb.gimp_edit_fill(label_outline, BACKGROUND_FILL)
 	# Meld all the layers together
 	image.flatten()
+
+	## Try to convert color profile to a default (known-good) one, to avoid libpng errors
+	# Issue is "lcms: skipping conversion because profiles seem to be equal",
+	#  followed by "libpng error: known incorrect sRGB profile" for e.g. IEC61966-2.1
+	# See also: https://wiki.archlinux.org/index.php/Libpng_errors
+	# Requires lcms support, I think. 0 = GIMP_COLOR_RENDERING_INTENT_PERCEPTUAL
+	try:
+		pdb.plug_in_icc_profile_apply_rgb(image, 0, False) # lcms seem to skip that often
+		pdb.plug_in_icc_profile_set_rgb(image) # force-unsets profile in case of lcms being lazy
+	except gimp.error: pass # missing plugin
 
 	## Save image to a temporary file and set it as a bg, cleanup older images
 	for tmp_file in iglob(result_path): os.unlink(tmp_file)
