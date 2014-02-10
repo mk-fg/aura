@@ -104,8 +104,8 @@ To quote the command itself:
 	  aura.sh paths...
 	  aura.sh --favepick directory
 	  aura.sh ( -d | --daemon ) [ --no-fork ] [ --no-init ] paths...
-	  aura.sh [ -n | --next ] [ -f | --fave ] \
-	    [ -b | --blacklist ] [ -k | --kill ] [ -h | --help ]
+	  aura.sh [ -n | --next ] [ -c | --current ] \
+	    [ -f | --fave ] [ -b | --blacklist ] [ -k | --kill ] [ -h | --help ]
 
 	Set background image, randomly selected from the specified paths.
 	Option --favepick makes it weighted-random among fave-list (see also --fave).
@@ -128,10 +128,11 @@ To quote the command itself:
 
 ...and mentioned "beginning of this script" is:
 
-	~% head -17 aura
+	~% head -24 aura
 	#!/bin/bash
 
-	## Options
+	### Options start
+
 	interval=$(( 3 * 3600 )) # 3h
 	recheck=$(( 3600 )) # 1h
 	activity_timeout=$(( 30 * 60 )) # 30min
@@ -140,11 +141,18 @@ To quote the command itself:
 	gimp_cmd="nice ionice -c3 gimp"
 
 	wps_dir=~/.aura
+	favelist="$wps_dir"/favelist
 	blacklist="$wps_dir"/blacklist
 	log_err="$wps_dir"/picker.log
 	log_hist="$wps_dir"/history.log
 	log_curr="$wps_dir"/current
 	pid="$wps_dir"/picker.pid
+	hook_onchange="$wps_dir"/hook.onchange
+
+	# Resets sleep timer in daemon (if running) after oneshot script invocation
+	delay_daemon_on_oneshot_change=true # empty for false
+
+	### Options end
 
 Also, see the beginning of a python plugin (lqr_wpset) for some image
 processing options:

@@ -94,8 +94,8 @@ Usage:
   $(basename "$0") paths...
   $(basename "$0") --favepick directory
   $(basename "$0") ( -d | --daemon ) [ --no-fork ] [ --no-init ] paths...
-  $(basename "$0") [ -n | --next ] [ -f | --fave ] \\
-    [ -b | --blacklist ] [ -k | --kill ] [ -h | --help ]
+  $(basename "$0") [ -n | --next ] [ -c | --current ] \\
+    [ -f | --fave ] [ -b | --blacklist ] [ -k | --kill ] [ -h | --help ]
 
 Set background image, randomly selected from the specified paths.
 Option --favepick makes it weighted-random among fave-list (see also --fave).
