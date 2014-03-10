@@ -12,7 +12,7 @@
 	img.standalone { width: 600px; }
 	img.inline { float: left; width: 400px; }
 	img.inline.small { width: 200px; }
-	img.inline.misc { border: none;  width: 20px; }
+	img.inline.misc { border: none; width: 20px; }
 	div, p { clear: left; }
 	hr { clear: both; }
 	.contents { float: right; border: 3px double silver; padding: 0 2em; }
@@ -283,11 +283,15 @@ chmod +x ~/.gimp-2.8/plug-ins/lqr_wpset.py
 <pre>
 ~% aura -h
 Usage:
-  aura paths...
-  aura ( -d | --daemon ) [ --no-fork ] [ --no-init ] paths...
-  aura [ -n | --next ] [ -b | --blacklist ] [ -k | --kill ] [ -h | --help ]
+  aura.sh paths...
+  aura.sh --favepick directory
+  aura.sh ( -d | --daemon ) [ --no-fork ] [ --no-init ] paths...
+  aura.sh [ -n | --next ] [ -c | --current ] \
+    [ -f | --fave ] [ -b | --blacklist ] [ -k | --kill ] [ -h | --help ]
 
 Set background image, randomly selected from the specified paths.
+Option --favepick makes it weighted-random among fave-list (see also --fave).
+Blacklisted paths never get picked (see --blacklist).
 
 Optional --daemon flag starts instance in the background (unless --no-fork is
 also specified), and picks/sets a new image on start (unless --no-init is specified),
@@ -296,6 +300,7 @@ and every 10800s afterwards.
 Some options (or their one-letter equivalents) can be given instead of paths to
 control already-running instance (started with --daemon flag):
   --next       cycle to then next background immediately.
+  --fave       give +1 rating (used with --favepick) to current background image.
   --blacklist  add current background to blacklist (skip it from now on).
   --kill       stop currently running instance.
   --current    echo current background image name
@@ -306,10 +311,11 @@ Various paths and parameters are specified in the beginning of this script.
 
 <p id="aura_head">...and mentioned "beginning of this script" is:</p>
 <pre>
-~% head -17 aura
+~% head -24 aura
 #!/bin/bash
 
-## Options
+### Options start
+
 interval=$(( 3 * 3600 )) # 3h
 recheck=$(( 3600 )) # 1h
 activity_timeout=$(( 30 * 60 )) # 30min
@@ -318,11 +324,18 @@ max_log_size=$(( 1024 * 1024 )) # 1M, current+last files are kept
 gimp_cmd="nice ionice -c3 gimp"
 
 wps_dir=~/.aura
+favelist="$wps_dir"/favelist
 blacklist="$wps_dir"/blacklist
 log_err="$wps_dir"/picker.log
 log_hist="$wps_dir"/history.log
 log_curr="$wps_dir"/current
 pid="$wps_dir"/picker.pid
+hook_onchange="$wps_dir"/hook.onchange
+
+# Resets sleep timer in daemon (if running) after oneshot script invocation
+delay_daemon_on_oneshot_change=true # empty for false
+
+### Options end
 </pre>
 
 <p id="lqr_wpset_head">Also, see the beginning of a python plugin (lqr_wpset)

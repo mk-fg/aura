@@ -13,9 +13,9 @@ from __future__ import unicode_literals, print_function
 # 	(gimp-quit TRUE)' 2>&1 1>/dev/null | tee log | grep WS-ERR
 
 __author__ = 'Mike Kazantsev'
-__copyright__ = 'Copyright 2011-2013, Mike Kazantsev'
+__copyright__ = 'Copyright 2011-2014, Mike Kazantsev'
 __license__ = 'WTFPL'
-__version__ = '0.15'
+__version__ = '0.16'
 __email__ = 'mk.fraggod@gmail.com'
 __status__ = 'beta'
 __blurb__ = 'LQRify to desktop'
@@ -56,6 +56,7 @@ re_type = type(re.compile(''))
 
 from gimpfu import *
 import gimp
+
 
 def process_tags(path):
 	meta = dict()
@@ -114,7 +115,15 @@ def set_background(path):
 	#  asynchronously, so there's no way of knowing when the image will
 	#  actually be used
 
-	## Gconf - GNOME, XFCE/nautilus and such
+	## GSettings - newer GNOME, Unity
+	# Using gi.repository.Gio here directly is tricky alongside gimp's gtk2
+	from subprocess import call
+	from urllib import quote
+	call([ 'gsettings', 'set',
+		'org.gnome.desktop.background', 'picture-uri',
+		'file://{0}'.format(quote(path)) ])
+
+	## Gconf - older GNOME, XFCE/nautilus and such
 	try:
 		import gconf
 		gconf = gconf.client_get_default()
@@ -179,6 +188,13 @@ class PDB(object):
 		else:
 			return self.gimp_image_scale_full(
 				image, w, h, self._ctx['interpolation'] )
+	def gimp_item_transform_flip_simple( self,
+			image, flip_type, auto_center, axis, clip_result=False ):
+		if gimp.version >= (2, 7, 0):
+			return self._pdb.gimp_item_transform_flip_simple(image, flip_type, auto_center, axis)
+		else:
+			return self._pdb.gimp_drawable_transform_flip_simple(
+				image, flip_type, auto_center, axis, clip_result )
 
 	# gimp-image-select-rectangle (2.7) -> gimp-rect-select
 	def gimp_context_set_feather(self, val):
@@ -216,7 +232,7 @@ class PDB(object):
 		if gimp.version >= (2, 7, 0):
 			return self._pdb.gimp_image_select_item(image, op, item)
 		else:
-			return self._pdb.gimp_vectors_to_selection( path,
+			return self._pdb.gimp_vectors_to_selection( item,
 				CHANNEL_OP_REPLACE, self._ctx['antialias'],
 				self._ctx['feather'], *self._ctx['feather_radius'] )
 
@@ -356,6 +372,16 @@ def lqr_wpset(path):
 		pdb.gimp_edit_fill(label_outline, BACKGROUND_FILL)
 	# Meld all the layers together
 	image.flatten()
+
+	## Try to convert color profile to a default (known-good) one, to avoid libpng errors
+	# Issue is "lcms: skipping conversion because profiles seem to be equal",
+	#  followed by "libpng error: known incorrect sRGB profile" for e.g. IEC61966-2.1
+	# See also: https://wiki.archlinux.org/index.php/Libpng_errors
+	# Requires lcms support, I think. 0 = GIMP_COLOR_RENDERING_INTENT_PERCEPTUAL
+	try:
+		pdb.plug_in_icc_profile_apply_rgb(image, 0, False) # lcms seem to skip that often
+		pdb.plug_in_icc_profile_set_rgb(image) # force-unsets profile in case of lcms being lazy
+	except gimp.error: pass # missing plugin
 
 	## Save image to a temporary file and set it as a bg, cleanup older images
 	for tmp_file in iglob(result_path): os.unlink(tmp_file)
