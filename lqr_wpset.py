@@ -294,6 +294,7 @@ def lqr_wpset(path):
 		0, 1000, 0, 1000, 0, 0, 1, 150, 1, 1, 0, 0, 3, 0, 0, 0, 0, 1, '', '', '', '' )
 
 	# Do the random horizontal flip of the image layer, if specified
+	random.seed()
 	if hflip_chance > 0 and random.random() < hflip_chance:
 		pdb.gimp_item_transform_flip_simple(
 			layer_image, ORIENTATION_HORIZONTAL, True, 0 )
