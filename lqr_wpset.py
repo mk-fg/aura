@@ -47,9 +47,8 @@ result_path = '/tmp/.lqr_wpset_bg.*.png'
 import itertools as it, operator as op, functools as ft
 from datetime import datetime
 from tempfile import mkstemp
-from glob import iglob
 from gtk import gdk
-import os, sys, collections, random
+import os, sys, glob, collections, random
 
 import re
 re_type = type(re.compile(''))
@@ -383,12 +382,15 @@ def lqr_wpset(path):
 	except gimp.error: pass # missing plugin
 
 	## Save image to a temporary file and set it as a bg, cleanup older images
-	for tmp_file in iglob(result_path): os.unlink(tmp_file)
+	old_files = glob.glob(result_path)
 	prefix, suffix = result_path.split('*', 1)
 	tmp_dir, prefix = prefix.rsplit('/', 1)
 	fd, tmp_file = mkstemp(prefix=prefix, suffix=suffix, dir=tmp_dir)
 	pdb.gimp_file_save(image, image.active_layer, tmp_file, tmp_file)
 	set_background(tmp_file)
+	for tmp_file in old_files:
+		with open(tmp_file, 'w'): pass # truncate files first, in case something holds open fd
+		os.unlink(tmp_file)
 
 	## Restore gimp state
 	pdb.gimp_image_delete(image)
