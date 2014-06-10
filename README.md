@@ -128,7 +128,7 @@ To quote the command itself:
 
 ...and mentioned "beginning of this script" is:
 
-	~% head -24 aura
+	~% head -50 aura
 	#!/bin/bash
 
 	### Options start
@@ -140,19 +140,22 @@ To quote the command itself:
 
 	gimp_cmd="nice ionice -c3 gimp"
 
-	wps_dir=~/.aura
-	favelist="$wps_dir"/favelist
-	blacklist="$wps_dir"/blacklist
-	log_err="$wps_dir"/picker.log
-	log_hist="$wps_dir"/history.log
-	log_curr="$wps_dir"/current
-	pid="$wps_dir"/picker.pid
-	hook_onchange="$wps_dir"/hook.onchange
+	...
 
 	# Resets sleep timer in daemon (if running) after oneshot script invocation
 	delay_daemon_on_oneshot_change=true # empty for false
 
+	[[ -r ~/.aurarc ]] && source ~/.aurarc
+
 	### Options end
+
+Note that any of the option defaults listed there can be overidden in ~/.aurarc
+file, e.g. to enable caching for rescaled images and change cache size/cleanup,
+put these lines there:
+
+	cache_enabled=t
+	cache_cleanup_keep=$(( 1000 * 2**20 ))
+	cache_cleanup_chance=5
 
 Also, see the beginning of a python plugin (lqr_wpset) for some image
 processing options:
