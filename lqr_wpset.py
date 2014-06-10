@@ -239,15 +239,10 @@ class PDB(object):
 pdb = PDB()
 
 
-def lqr_wpset(path):
-	image = pdb.gimp_file_load(path, path)
-	layer_image = image.active_layer
-	w, h = gdk.screen_width(), gdk.screen_height()
-	bak_colors = gimp.get_foreground(), gimp.get_background()
-
-	## Crop black margins
-	# ...by adding a layer, making it more contrast (to drop noise on margins),
-	#  then cropping the layer and image to the produced layer size
+def image_crop(image):
+	'''Crop black margins from the image.
+		Done by adding a layer, making it more contrast (to drop noise on margins),
+			then cropping the layer and image to the produced layer size.'''
 	layer_guide = image.active_layer.copy()
 	image.add_layer(layer_guide, 1)
 	pdb.gimp_brightness_contrast(layer_guide, -30, 30)
@@ -257,17 +252,9 @@ def lqr_wpset(path):
 		layer_guide.offsets[0], layer_guide.offsets[1] )
 	image.remove_layer(layer_guide)
 
-	## Check whether size/aspect difference isn't too great
-	aspects = float(w)/h, float(image.width)/image.height
-	diff_aspect = abs(aspects[0] - aspects[1])
-	diff_size = float(image.width * image.height) / (w*h)
-	if diff_aspect > max_aspect_diff or diff_size < 1.0/max_smaller_diff:
-		pdb.gimp_message( 'Aspect diff: {0:.2f} (max: {1:.2f}), size diff: {2:.2f} (min: {3:.2f})'\
-			.format(diff_aspect, max_aspect_diff, diff_size, 1.0/max_smaller_diff) )
-		pdb.gimp_message('WPS-ERR:next')
-		return
 
-	## Metadata: image name, data from image parasite tags and/or file mtime
+def image_meta(path, image):
+	'Get metadata dict: image name, data from image parasite tags and/or file mtime.'
 	meta_base = { 'title': os.path.basename(path),
 		'created': datetime.fromtimestamp(os.stat(path).st_mtime),
 		'original size': '{0} x {1}'.format(*op.attrgetter('width', 'height')(image)) }
@@ -293,12 +280,15 @@ def lqr_wpset(path):
 				if label in meta_base:
 					meta_base[label] = '{0} (raw)'.format(meta_base[label])
 	meta_base.update(meta)
-	meta = meta_base
+	return meta_base
 
-	## Rescaling
-	# Pre-LQR rescaling, preserving aspect
-	# Improves quality and saves a lot of jiffies
-	if diff_size > min_prescale_diff:
+
+def image_rescale(image, layer, w, h, two_pass=False):
+	'two_pass should be either False or tuple of (aspect0, aspect1)'
+	if two_pass:
+		# Pre-LQR rescaling, preserving aspect
+		# Improves quality and saves a lot of jiffies
+		aspects = two_pass
 		new_size = map( lambda x: round(x, 0),
 			(image.width - (image.height - h) * aspects[1], h)\
 			if aspects[1] > aspects[0] else\
@@ -306,15 +296,11 @@ def lqr_wpset(path):
 		pdb.gimp_context_set_interpolation(INTERPOLATION_CUBIC)
 		pdb.gimp_image_scale(image, new_size[0], new_size[1])
 	# All but the first 4 parameters are defaults, taken from batch-gimp-lqr.scm
-	pdb.plug_in_lqr( image, layer_image, w, h,
+	pdb.plug_in_lqr( image, layer, w, h,
 		0, 1000, 0, 1000, 0, 0, 1, 150, 1, 1, 0, 0, 3, 0, 0, 0, 0, 1, '', '', '', '' )
 
-	# Do the random horizontal flip of the image layer, if specified
-	random.seed()
-	if hflip_chance > 0 and random.random() < hflip_chance:
-		pdb.gimp_item_transform_flip_simple(
-			layer_image, ORIENTATION_HORIZONTAL, True, 0 )
 
+def image_add_label(image, layer_image, meta):
 	## Render label on top of the image layer
 	# First, render all the the text boxes
 	# Image title, larger than the rest of the tags
@@ -373,27 +359,61 @@ def lqr_wpset(path):
 	# Meld all the layers together
 	image.flatten()
 
-	## Try to convert color profile to a default (known-good) one, to avoid libpng errors
-	# Issue is "lcms: skipping conversion because profiles seem to be equal",
-	#  followed by "libpng error: known incorrect sRGB profile" for e.g. IEC61966-2.1
-	# See also: https://wiki.archlinux.org/index.php/Libpng_errors
-	# Requires lcms support, I think. 0 = GIMP_COLOR_RENDERING_INTENT_PERCEPTUAL
+
+def lqr_wpset(path):
+	w, h = gdk.screen_width(), gdk.screen_height()
+
+	image = pdb.gimp_file_load(path, path)
+	layer_image = image.active_layer
+	bak_colors = gimp.get_foreground(), gimp.get_background()
 	try:
-		pdb.plug_in_icc_profile_apply_rgb(image, 0, False) # lcms seem to skip that often
-		pdb.plug_in_icc_profile_set_rgb(image) # force-unsets profile in case of lcms being lazy
-	except gimp.error: pass # missing plugin
+		image_crop(image)
 
-	## Save image to a temporary file and set it as a bg, cleanup older images
-	for tmp_file in iglob(result_path): os.unlink(tmp_file)
-	prefix, suffix = result_path.split('*', 1)
-	tmp_dir, prefix = prefix.rsplit('/', 1)
-	fd, tmp_file = mkstemp(prefix=prefix, suffix=suffix, dir=tmp_dir)
-	pdb.gimp_file_save(image, image.active_layer, tmp_file, tmp_file)
-	set_background(tmp_file)
+		## Check whether size/aspect difference isn't too great
+		aspects = float(w)/h, float(image.width)/image.height
+		diff_aspect = abs(aspects[0] - aspects[1])
+		diff_size = float(image.width * image.height) / (w*h)
+		if diff_aspect > max_aspect_diff or diff_size < 1.0/max_smaller_diff:
+			pdb.gimp_message( 'Aspect diff: {0:.2f} (max: {1:.2f}), size diff: {2:.2f} (min: {3:.2f})'\
+				.format(diff_aspect, max_aspect_diff, diff_size, 1.0/max_smaller_diff) )
+			pdb.gimp_message('WPS-ERR:next')
+			return
 
-	## Restore gimp state
-	pdb.gimp_image_delete(image)
-	gimp.set_foreground(bak_colors[0]), gimp.set_background(bak_colors[1])
+		meta = image_meta(path, image)
+		image_rescale( image, layer_image, w, h,
+			(diff_size > min_prescale_diff) and aspects )
+
+		## Do the random horizontal flip of the image layer, if specified
+		random.seed()
+		if hflip_chance > 0 and random.random() < hflip_chance:
+			pdb.gimp_item_transform_flip_simple(
+				layer_image, ORIENTATION_HORIZONTAL, True, 0 )
+
+		image_add_label(image, layer_image, meta)
+
+		## Try to convert color profile to a default (known-good) one, to avoid libpng errors
+		# Issue is "lcms: skipping conversion because profiles seem to be equal",
+		#  followed by "libpng error: known incorrect sRGB profile" for e.g. IEC61966-2.1
+		# See also: https://wiki.archlinux.org/index.php/Libpng_errors
+		# Requires lcms support, I think. 0 = GIMP_COLOR_RENDERING_INTENT_PERCEPTUAL
+		try:
+			pdb.plug_in_icc_profile_apply_rgb(image, 0, False) # lcms seem to skip that often
+			pdb.plug_in_icc_profile_set_rgb(image) # force-unsets profile in case of lcms being lazy
+		except gimp.error: pass # missing plugin
+
+		## Save image to a temporary file and set it as a bg, cleanup older images
+		for tmp_file in iglob(result_path): os.unlink(tmp_file)
+		prefix, suffix = result_path.split('*', 1)
+		tmp_dir, prefix = prefix.rsplit('/', 1)
+		fd, tmp_file = mkstemp(prefix=prefix, suffix=suffix, dir=tmp_dir)
+		pdb.gimp_file_save(image, image.active_layer, tmp_file, tmp_file)
+		set_background(tmp_file)
+
+	finally:
+		## Restore gimp state
+		pdb.gimp_image_delete(image)
+		gimp.set_foreground(bak_colors[0]), gimp.set_background(bak_colors[1])
+
 
 
 ### Extra bulky metadata
