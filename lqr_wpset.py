@@ -413,9 +413,8 @@ def lqr_wpset(path):
 		if not cached:
 			image_rescale( image, layer_image, w, h,
 				(diff_size > min_prescale_diff) and aspects )
-
-		if cache_path and not cached:
-			pdb.gimp_file_save(image, layer_image, cache_path, cache_path)
+			if cache_path:
+				pdb.gimp_file_save(image, layer_image, cache_path, cache_path)
 
 		## Do the random horizontal flip of the image layer, if specified
 		if hflip_chance > 0 and random.random() < hflip_chance:
