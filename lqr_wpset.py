@@ -391,6 +391,7 @@ def lqr_wpset(path):
 			path_source, cached = cache_path, True
 
 	image = pdb.gimp_file_load(path_source, path_source)
+	image_orig = image if not cached else pdb.gimp_file_load(path, path)
 	layer_image = image.active_layer
 	bak_colors = gimp.get_foreground(), gimp.get_background()
 	try:
@@ -407,7 +408,7 @@ def lqr_wpset(path):
 				pdb.gimp_message('WPS-ERR:next')
 				return
 
-		meta = image_meta(path, image)
+		meta = image_meta(path, image_orig)
 
 		if not cached:
 			image_rescale( image, layer_image, w, h,
