@@ -5,7 +5,7 @@
 interval=$(( 3 * 3600 )) # 3h
 recheck=$(( 3600 )) # 1h
 activity_timeout=$(( 30 * 60 )) # 30min
-max_log_size=$(( 1024 * 1024 )) # 1M, current+last files are kept
+max_log_size=$(( 2**20 )) # 1 MiB, current+last files are kept
 
 gimp_cmd="nice ionice -c3 gimp"
 
@@ -18,8 +18,17 @@ log_curr="$wps_dir"/current
 pid="$wps_dir"/picker.pid
 hook_onchange="$wps_dir"/hook.onchange
 
+# Cache for processed images
+cache_enabled= # will be enabled if non-empty
+cache_dir="$wps_dir"/cache
+cache_cleanup_keep=$(( 100 * 2**20 )) # how many MiB of cached files to keep (100 MiB)
+cache_cleanup_chance=8 # chance (percent) to run a cleanup routine on image change
+
 # Resets sleep timer in daemon (if running) after oneshot script invocation
 delay_daemon_on_oneshot_change=true # empty for false
+
+# Site-local option overrides, if any
+[[ -r ~/.aurarc ]] && source ~/.aurarc
 
 ### Options end
 
@@ -183,6 +192,14 @@ sleep_int() {
 log() {
 	[[ -e "$1" && "$(stat --format=%s "$1")" -gt "$max_log_size" ]] && mv "$1"{,.old}
 	echo "$2" >>"$1"
+}
+
+## Cache parameters
+[[ -n "$cache_enabled" ]] && {
+	[[ ! -e "$cache_dir" ]] && { mkdir -p "$cache_dir" || exit 1; }
+	export LQR_WPSET_CACHE_DIR="$cache_dir"
+	export LQR_WPSET_CACHE_SIZE="$cache_cleanup_keep"
+	export LQR_WPSET_CACHE_CHANCE="$cache_cleanup_chance"
 }
 
 

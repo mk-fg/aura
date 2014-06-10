@@ -38,6 +38,22 @@ hflip_chance = 0.5
 # All files matching the pattern will be a subject to cleanup!
 result_path = '/tmp/.lqr_wpset_bg.*.png'
 
+# Use cache, if enabled via env
+import os
+cache_dir = os.environ.get('LQR_WPSET_CACHE_DIR')
+if cache_dir:
+	def get_cache_watermarks():
+		res = list()
+		for k in ['SIZE', 'CHANCE']:
+			v = os.environ.get('LQR_WPSET_CACHE_{}'.format(k)) or 0
+			try:
+				v = float(v)
+				if v < 0: raise ValueError()
+			except ValueError: v = 0
+			res.append(v)
+		return res
+	cache_size, cache_cleanup = get_cache_watermarks()
+
 # see also extra-bulky "label_tags" definition in the script's tail
 ####################
 
@@ -48,7 +64,7 @@ import itertools as it, operator as op, functools as ft
 from datetime import datetime
 from tempfile import mkstemp
 from gtk import gdk
-import os, sys, glob, collections, random
+import os, sys, glob, collections, random, hashlib
 
 import re
 re_type = type(re.compile(''))
@@ -238,11 +254,11 @@ class PDB(object):
 pdb = PDB()
 
 
-def image_crop(image):
+def image_crop(image, layer):
 	'''Crop black margins from the image.
 		Done by adding a layer, making it more contrast (to drop noise on margins),
 			then cropping the layer and image to the produced layer size.'''
-	layer_guide = image.active_layer.copy()
+	layer_guide = layer.copy()
 	image.add_layer(layer_guide, 1)
 	pdb.gimp_brightness_contrast(layer_guide, -30, 30)
 	pdb.plug_in_autocrop_layer(image, layer_guide) # should crop margins on layer
@@ -355,40 +371,57 @@ def image_add_label(image, layer_image, meta):
 		pdb.gimp_image_select_item(image, CHANNEL_OP_REPLACE, path)
 		pdb.gimp_selection_grow(image, 1), pdb.gimp_selection_border(image, 1)
 		pdb.gimp_edit_fill(label_outline, BACKGROUND_FILL)
-	# Meld all the layers together
+
+	# Meld all the layers together, return new "image" layer
 	image.flatten()
+	return image.active_layer
 
 
 def lqr_wpset(path):
+	random.seed()
 	w, h = gdk.screen_width(), gdk.screen_height()
 
-	image = pdb.gimp_file_load(path, path)
+	path_source, cache_path, cached = path, None, False
+	if cache_dir:
+		cache_key = os.path.realpath(path), os.stat(path).st_mtime, w, h
+		cache_path = os.path.join(cache_dir, b'{}.png'.format(
+			hashlib.sha256(b'\0'.join(map(bytes, cache_key)))\
+				.digest().encode('base64').rstrip(b'\n=').replace(b'/', b'-') ))
+		if os.path.exists(cache_path):
+			path_source, cached = cache_path, True
+
+	image = pdb.gimp_file_load(path_source, path_source)
 	layer_image = image.active_layer
 	bak_colors = gimp.get_foreground(), gimp.get_background()
 	try:
-		image_crop(image)
+		if not cached:
+			image_crop(image, layer_image)
 
-		## Check whether size/aspect difference isn't too great
-		aspects = float(w)/h, float(image.width)/image.height
-		diff_aspect = abs(aspects[0] - aspects[1])
-		diff_size = float(image.width * image.height) / (w*h)
-		if diff_aspect > max_aspect_diff or diff_size < 1.0/max_smaller_diff:
-			pdb.gimp_message( 'Aspect diff: {0:.2f} (max: {1:.2f}), size diff: {2:.2f} (min: {3:.2f})'\
-				.format(diff_aspect, max_aspect_diff, diff_size, 1.0/max_smaller_diff) )
-			pdb.gimp_message('WPS-ERR:next')
-			return
+			## Check whether size/aspect difference isn't too great
+			aspects = float(w)/h, float(image.width)/image.height
+			diff_aspect = abs(aspects[0] - aspects[1])
+			diff_size = float(image.width * image.height) / (w*h)
+			if diff_aspect > max_aspect_diff or diff_size < 1.0/max_smaller_diff:
+				pdb.gimp_message( 'Aspect diff: {0:.2f} (max: {1:.2f}), size diff: {2:.2f} (min: {3:.2f})'\
+					.format(diff_aspect, max_aspect_diff, diff_size, 1.0/max_smaller_diff) )
+				pdb.gimp_message('WPS-ERR:next')
+				return
 
 		meta = image_meta(path, image)
-		image_rescale( image, layer_image, w, h,
-			(diff_size > min_prescale_diff) and aspects )
+
+		if not cached:
+			image_rescale( image, layer_image, w, h,
+				(diff_size > min_prescale_diff) and aspects )
+
+		if cache_path and not cached:
+			pdb.gimp_file_save(image, layer_image, cache_path, cache_path)
 
 		## Do the random horizontal flip of the image layer, if specified
-		random.seed()
 		if hflip_chance > 0 and random.random() < hflip_chance:
 			pdb.gimp_item_transform_flip_simple(
 				layer_image, ORIENTATION_HORIZONTAL, True, 0 )
 
-		image_add_label(image, layer_image, meta)
+		layer_image = image_add_label(image, layer_image, meta)
 
 		## Try to convert color profile to a default (known-good) one, to avoid libpng errors
 		# Issue is "lcms: skipping conversion because profiles seem to be equal",
@@ -404,17 +437,32 @@ def lqr_wpset(path):
 		old_files = glob.glob(result_path)
 		prefix, suffix = result_path.split('*', 1)
 		tmp_dir, prefix = prefix.rsplit('/', 1)
-		fd, tmp_file = mkstemp(prefix=prefix, suffix=suffix, dir=tmp_dir)
-		pdb.gimp_file_save(image, image.active_layer, tmp_file, tmp_file)
-		set_background(tmp_file)
-		for tmp_file in old_files:
-			with open(tmp_file, 'wb'): pass # truncate files first, in case something holds open fd
-			os.unlink(tmp_file)
+		fd, tmp_file_path = mkstemp(prefix=prefix, suffix=suffix, dir=tmp_dir)
+		pdb.gimp_file_save(image, layer_image, tmp_file_path, tmp_file_path)
+		set_background(tmp_file_path)
+		os.close(fd)
+		for tmp_file_path in old_files:
+			with open(tmp_file_path, 'wb'): pass # truncate files first, in case something holds open fd
+			os.unlink(tmp_file_path)
 
 	finally:
 		## Restore gimp state
 		pdb.gimp_image_delete(image)
 		gimp.set_foreground(bak_colors[0]), gimp.set_background(bak_colors[1])
+
+	## Cache cleanup
+	if cache_dir and random.random() < (cache_cleanup / 100.0):
+		files = list()
+		for p in map(ft.partial(os.path.join, cache_dir), os.listdir(cache_dir)):
+			try: s = os.stat(p)
+			except (OSError, IOError):
+				pdb.gimp_message('WPS-WARN: Unable to access cache path: {!r}'.format(p))
+				continue
+			files.append((s.st_mtime, s.st_size, p))
+		files = sorted(files, reverse=True)
+		while files and sum(map(op.itemgetter(1), files)) > cache_size:
+			mtime, size, p = files.pop() # oldest one
+			os.unlink(p)
 
 
 
