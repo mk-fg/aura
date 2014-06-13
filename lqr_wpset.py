@@ -390,8 +390,11 @@ def lqr_wpset(path):
 		if os.path.exists(cache_path):
 			path_source, cached = cache_path, True
 
-	image = pdb.gimp_file_load(path_source, path_source)
+	try: image = pdb.gimp_file_load(path_source, path_source)
+	except RuntimeError: # failed to load - e.g. corrupted file
+		cached, image = False, pdb.gimp_file_load(path, path)
 	image_orig = image if not cached else pdb.gimp_file_load(path, path)
+
 	layer_image = image.active_layer
 	bak_colors = gimp.get_foreground(), gimp.get_background()
 	try:
