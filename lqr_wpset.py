@@ -415,13 +415,20 @@ def lqr_wpset(path):
 		meta = image_meta(path, image_orig)
 
 		if not cached:
+			## Try to convert color profile to a default (known-good) one, to avoid libpng errors
+			# Issue is "lcms: skipping conversion because profiles seem to be equal",
+			#  followed by "libpng error: known incorrect sRGB profile" for e.g. IEC61966-2.1
+			# See also: https://wiki.archlinux.org/index.php/Libpng_errors
+			# Requires lcms support, I think. 0 = GIMP_COLOR_RENDERING_INTENT_PERCEPTUAL
+			try:
+				pdb.plug_in_icc_profile_apply_rgb(image, 0, False) # lcms seem to skip that often
+				pdb.plug_in_icc_profile_set_rgb(image) # force-unsets profile in case of lcms being lazy
+			except gimp.error: pass # missing plugin
+
 			image_rescale( image, layer_image, w, h,
 				(diff_size > min_prescale_diff) and aspects )
+
 			if cache_path:
-				# Not sure why "flatten" seem to be necessary here,
-				#  but save randomly fails for some of the images otherwise
-				image.flatten()
-				layer_image = image.active_layer
 				pdb.gimp_file_save(image, layer_image, cache_path, cache_path)
 
 		## Do the random horizontal flip of the image layer, if specified
@@ -430,16 +437,6 @@ def lqr_wpset(path):
 				layer_image, ORIENTATION_HORIZONTAL, True, 0 )
 
 		layer_image = image_add_label(image, layer_image, meta)
-
-		## Try to convert color profile to a default (known-good) one, to avoid libpng errors
-		# Issue is "lcms: skipping conversion because profiles seem to be equal",
-		#  followed by "libpng error: known incorrect sRGB profile" for e.g. IEC61966-2.1
-		# See also: https://wiki.archlinux.org/index.php/Libpng_errors
-		# Requires lcms support, I think. 0 = GIMP_COLOR_RENDERING_INTENT_PERCEPTUAL
-		try:
-			pdb.plug_in_icc_profile_apply_rgb(image, 0, False) # lcms seem to skip that often
-			pdb.plug_in_icc_profile_set_rgb(image) # force-unsets profile in case of lcms being lazy
-		except gimp.error: pass # missing plugin
 
 		## Save image to a temporary file and set it as a bg, cleanup older images
 		old_files = glob.glob(result_path)
