@@ -45,7 +45,7 @@ if cache_dir:
 	def get_cache_watermarks():
 		res = list()
 		for k in ['SIZE', 'CHANCE']:
-			v = os.environ.get('LQR_WPSET_CACHE_{}'.format(k)) or 0
+			v = os.environ.get('LQR_WPSET_CACHE_{0}'.format(k)) or 0
 			try:
 				v = float(v)
 				if v < 0: raise ValueError()
@@ -384,9 +384,10 @@ def lqr_wpset(path):
 	path_source, cache_path, cached = path, None, False
 	if cache_dir:
 		cache_key = os.path.realpath(path), os.stat(path).st_mtime, w, h
-		cache_path = os.path.join(cache_dir, b'{}.png'.format(
-			hashlib.sha256(b'\0'.join(map(bytes, cache_key)))\
-				.digest().encode('base64').rstrip(b'\n=').replace(b'/', b'-') ))
+		cache_path = os.path.join(cache_dir, b'{0}.png'.format(
+			re.sub( r'[\n=+/]', '',
+				hashlib.sha256(b'\0'.join(map(bytes, cache_key)))\
+					.digest().encode('base64') )[:20] ))
 		if os.path.exists(cache_path):
 			path_source, cached = cache_path, True
 
@@ -417,6 +418,10 @@ def lqr_wpset(path):
 			image_rescale( image, layer_image, w, h,
 				(diff_size > min_prescale_diff) and aspects )
 			if cache_path:
+				# Not sure why "flatten" seem to be necessary here,
+				#  but save randomly fails for some of the images otherwise
+				image.flatten()
+				layer_image = image.active_layer
 				pdb.gimp_file_save(image, layer_image, cache_path, cache_path)
 
 		## Do the random horizontal flip of the image layer, if specified
