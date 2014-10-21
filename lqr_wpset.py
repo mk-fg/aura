@@ -32,12 +32,15 @@ conf = dict(
 	max_size_diff_w = 3.0, max_size_diff_h = 3.0,
 	max_aspect_diff = 0.7, # same for aspect ratio, e.g. 16/9 - 4/3 = 0.444
 
-	# # If width is smaller, scale image to screen height and place
-	# #  it according to "gravity", using "bg_color" for the rest of the screen
-	# # Not implemented yet
-	# size_w_scale_to_h = True,
-	# size_w_gravity = 'left',
-	# size_w_bg_color = '000000', # format: rrggbb (hex)
+	# If width/aspect is too different, scale image to screen height and place
+	#  it according to "gravity", using "bg_color" for the rest of the screen
+	diff_w_scale_to_h = True,
+	# diff_w_gravity = 0, # XXX: add percentage of w here to center thing around
+	diff_w_bg_edge = 20, # blended edge, px
+	diff_w_bg_solid = False, # whether to use solid bg layer
+	diff_w_bg_solid_color = '000000', # format: rrggbb (hex)
+	diff_w_bg_edge_stretch = True, # pick N pixels from edge and stretch-blur these
+	diff_w_bg_edge_stretch_blur = 20.0,
 
 	label_offset = [10, 10],
 	label_colors = [
@@ -283,13 +286,13 @@ def image_crop(image, layer):
 		Done by adding a layer, making it more contrast (to drop noise on margins),
 			then cropping the layer and image to the produced layer size.'''
 	layer_guide = layer.copy()
-	image.add_layer(layer_guide, 1)
+	pdb.gimp_image_add_layer(image, layer_guide, 1)
 	pdb.gimp_brightness_contrast(layer_guide, -30, 30)
 	pdb.plug_in_autocrop_layer(image, layer_guide) # should crop margins on layer
 	pdb.gimp_image_crop( image,
 		layer_guide.width, layer_guide.height,
 		layer_guide.offsets[0], layer_guide.offsets[1] )
-	image.remove_layer(layer_guide)
+	pdb.gimp_image_remove_layer(image, layer_guide)
 
 
 def image_meta(path, image):
@@ -297,7 +300,7 @@ def image_meta(path, image):
 	meta_base = { 'title': os.path.basename(path),
 		'created': datetime.fromtimestamp(os.stat(path).st_mtime),
 		'original size': '{0} x {1}'.format(*op.attrgetter('width', 'height')(image)) }
-	try: meta = image.parasite_list()
+	try: meta = pdb.gimp_image_parasite_list(image)
 	except gimp.error: meta = list() # "gimp.error: could not list parasites on image"
 	meta = process_tags(path) if set(meta)\
 			.intersection(['icc-profile', 'jpeg-settings',
@@ -322,13 +325,68 @@ def image_meta(path, image):
 	return meta_base
 
 
+def image_rescale_to_part(image, layer, w, h, aspect):
+	# Resize
+	new_size = map( lambda x: int(round(x, 0)),
+		(image.width - (image.height - h) * aspect, h) )
+	pdb.gimp_context_set_interpolation(INTERPOLATION_CUBIC)
+	pdb.gimp_image_scale(image, new_size[0], new_size[1])
+
+	# Optional flip
+	if conf.hflip_chance > 0 and random.random() < conf.hflip_chance:
+		pdb.gimp_item_transform_flip_simple(layer, ORIENTATION_HORIZONTAL, True, 0)
+
+	# Scale canvas
+	edge_x, edge_w = image.width, conf.diff_w_bg_edge
+	edge_xw = edge_x - edge_w
+	pdb.gimp_image_resize(image, w, h, 0, 0)
+
+	if conf.diff_w_bg_edge_stretch:
+		# Stretch edge(s)
+		pdb.gimp_image_select_rectangle(
+			image, CHANNEL_OP_REPLACE, edge_xw, 0, edge_x, h )
+		pdb.gimp_edit_copy(layer)
+		pdb.gimp_selection_none(image)
+
+		layer_bg = pdb.gimp_edit_paste(layer, True)
+		pdb.gimp_floating_sel_to_layer(layer_bg)
+		pdb.gimp_image_lower_item_to_bottom(image, layer_bg)
+		pdb.gimp_layer_scale(layer_bg, w - edge_xw, h, True)
+		pdb.gimp_layer_set_offsets(layer_bg, edge_xw, 0)
+
+		# Blur produced layer
+		r = conf.diff_w_bg_edge_stretch_blur
+		pdb.plug_in_gauss(image, layer_bg, r, r, 0)
+
+	if conf.diff_w_bg_solid:
+		# Create solid-color bg layer
+		layer_bg = pdb.gimp_layer_new(image, w, h, RGB_IMAGE, 'bg', 100.0, NORMAL_MODE)
+		pdb.gimp_image_add_layer(image, layer_bg, 1)
+		c = conf.diff_w_bg_solid_color
+		c = tuple(int(c[n:n+2], 16) for n in xrange(0,6,2))
+		pdb.gimp_context_set_background(c)
+		pdb.gimp_drawable_fill(layer_bg, BACKGROUND_FILL)
+
+	if conf.diff_w_bg_edge_stretch or conf.diff_w_bg_solid:
+		# Blended fg-to-bg transition (edge_w px in length)
+		pdb.gimp_context_set_foreground((255,255,255))
+		pdb.gimp_context_set_background((0,0,0))
+		mask = pdb.gimp_layer_create_mask(layer, ADD_WHITE_MASK)
+		pdb.gimp_image_add_layer_mask(image, layer, mask)
+		pdb.gimp_edit_blend( mask,
+			FG_BG_RGB_MODE, NORMAL_MODE, GRADIENT_LINEAR,
+			100, 0, REPEAT_NONE, False, False, 0, 0, True,
+			edge_xw, 0, edge_x, 0 )
+
+	return pdb.gimp_image_flatten(image)
+
 def image_rescale(image, layer, w, h, two_pass=False):
 	'two_pass should be either False or tuple of (aspect0, aspect1)'
 	if two_pass:
 		# Pre-LQR rescaling, preserving aspect
 		# Improves quality and saves a lot of jiffies
 		aspects = two_pass
-		new_size = map( lambda x: round(x, 0),
+		new_size = map( lambda x: int(round(x, 0)),
 			(image.width - (image.height - h) * aspects[1], h)\
 			if aspects[1] > aspects[0] else\
 			(w, image.height - (image.width - w) / aspects[0]) )
@@ -382,10 +440,14 @@ def image_add_label(image, layer_image, meta):
 		int(round(pdb.gimp_histogram(layer_image, channel, 0, 255)[0], 0)) # mean intensity value
 		for channel in [HISTOGRAM_RED, HISTOGRAM_GREEN, HISTOGRAM_BLUE] )
 	label_fg_color = pick_contrast_color(label_bg_color)
-	gimp.set_foreground(label_fg_color), gimp.set_background(label_bg_color)
+	pdb.gimp_context_set_foreground(label_fg_color)
+	pdb.gimp_context_set_background(label_bg_color)
 	# Set the picked color for all label layers, draw outlines
-	label_outline = image.new_layer( 'label_outline',
-		opacity=30, pos=image.layers.index(layer_image) )
+	label_outline = pdb.gimp_layer_new(
+		image, image.width, image.height,
+		RGB_IMAGE, 'label_outline', 30.0, NORMAL_MODE )
+	pdb.gimp_image_add_layer(
+		image, label_outline, image.layers.index(layer_image) )
 	for layer in label_layers:
 		pdb.gimp_text_layer_set_color(layer, label_fg_color)
 		path = pdb.gimp_vectors_new_from_text_layer(image, layer)
@@ -397,8 +459,7 @@ def image_add_label(image, layer_image, meta):
 		pdb.gimp_edit_fill(label_outline, BACKGROUND_FILL)
 
 	# Meld all the layers together, return new "image" layer
-	image.flatten()
-	return image.active_layer
+	return pdb.gimp_image_flatten(image)
 
 
 def lqr_wpset(path):
@@ -421,7 +482,7 @@ def lqr_wpset(path):
 	image_orig = image if not cached else pdb.gimp_file_load(path, path)
 
 	layer_image = image.active_layer
-	bak_colors = gimp.get_foreground(), gimp.get_background()
+	bak_colors = pdb.gimp_context_get_foreground(), pdb.gimp_context_get_background()
 	try:
 		if not cached:
 			image_crop(image, layer_image)
@@ -434,14 +495,17 @@ def lqr_wpset(path):
 				float(image.width * image.height) / (w*h) ]
 			diff_size_chk = list((1.0 / getattr( conf,
 				'max_size_diff_{}'.format(k) )) for k in ['w', 'h', 'area'])
+			diff_scale = False
 			if diff_aspect > conf.max_aspect_diff\
 					or any((v < chk) for v, chk in zip(diff_size, diff_size_chk)):
-				pdb.gimp_message(
-					( 'Aspect diff: {:.2f} (max: {:.2f}), size'
-						' diff (w/h/area): {:.2f}/{:.2f}/{:.2f} (min: {:.2f}/{:.2f}/{:.2f})' )\
-					.format(diff_aspect, conf.max_aspect_diff, *(diff_size + diff_size_chk)) )
-				pdb.gimp_message('WPS-ERR:next')
-				return
+				if not conf.diff_w_scale_to_h or diff_size[1] < diff_size_chk[1]:
+					pdb.gimp_message(
+						( 'Aspect diff: {:.2f} (max: {:.2f}), size'
+							' diff (w/h/area): {:.2f}/{:.2f}/{:.2f} (min: {:.2f}/{:.2f}/{:.2f})' )\
+						.format(diff_aspect, conf.max_aspect_diff, *(diff_size + diff_size_chk)) )
+					pdb.gimp_message('WPS-ERR:next')
+					return
+				diff_scale, cache_path = True, None
 
 		meta = image_meta(path, image_orig)
 
@@ -456,14 +520,17 @@ def lqr_wpset(path):
 				pdb.plug_in_icc_profile_set_rgb(image) # force-unsets profile in case of lcms being lazy
 			except gimp.error: pass # missing plugin
 
-			image_rescale( image, layer_image, w, h,
-				(diff_size > conf.min_prescale_diff) and aspects )
+			if not diff_scale:
+				image_rescale( image, layer_image, w, h,
+					(diff_size[2] > conf.min_prescale_diff) and aspects )
+			else:
+				layer_image = image_rescale_to_part(image, layer_image, w, h, aspects[1])
 
 			if cache_path:
 				pdb.gimp_file_save(image, layer_image, cache_path, cache_path)
 
 		## Do the random horizontal flip of the image layer, if specified
-		if conf.hflip_chance > 0 and random.random() < conf.hflip_chance:
+		if not diff_scale and conf.hflip_chance > 0 and random.random() < conf.hflip_chance:
 			pdb.gimp_item_transform_flip_simple(
 				layer_image, ORIENTATION_HORIZONTAL, True, 0 )
 
@@ -484,7 +551,8 @@ def lqr_wpset(path):
 	finally:
 		## Restore gimp state
 		pdb.gimp_image_delete(image)
-		gimp.set_foreground(bak_colors[0]), gimp.set_background(bak_colors[1])
+		pdb.gimp_context_set_foreground(bak_colors[0])
+		pdb.gimp_context_set_background(bak_colors[1])
 
 	## Cache cleanup
 	if conf.cache_dir and random.random() < (conf.cache_cleanup / 100.0):
