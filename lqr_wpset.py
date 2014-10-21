@@ -21,10 +21,24 @@ __status__ = 'beta'
 __blurb__ = 'LQRify to desktop'
 __description__ = 'LQR-rescale image to desktop size and set as a background.'
 
+# All simple values here can be overidden via LQR_WPSET_* env vars
+# Example: LQR_WPSET_MAX_ASPECT_DIFF=0.2 LQR_WPSET_RECACHE=t ...
 conf = dict(
-	max_aspect_diff = 0.7, # 16/9 - 4/3 = 0.444
-	max_smaller_diff = 3, # don't process images N times smaller by area (w*h)
 	min_prescale_diff = 0.3, # use cubic on larger images (preserving aspect), then lqr
+
+	# Don't process images N times smaller by width/height or area (w*h)
+	# (1920*1080) / (800*600) = 4.32
+	max_size_diff_area = 6.0,
+	max_size_diff_w = 3.0, max_size_diff_h = 3.0,
+	max_aspect_diff = 0.7, # same for aspect ratio, e.g. 16/9 - 4/3 = 0.444
+
+	# # If width is smaller, scale image to screen height and place
+	# #  it according to "gravity", using "bg_color" for the rest of the screen
+	# # Not implemented yet
+	# size_w_scale_to_h = True,
+	# size_w_gravity = 'left',
+	# size_w_bg_color = '000000', # format: rrggbb (hex)
+
 	label_offset = [10, 10],
 	label_colors = [
 		[0]*3, [255]*3, (255, 0, 0),
@@ -44,6 +58,7 @@ conf = dict(
 	cache_dir = '',
 	cache_size = 0.0,
 	cache_cleanup = 0.0,
+	recache = False, # oneshot flag to ignore cached image
 )
 
 # see also extra-bulky "label_tags" definition in the script's tail
@@ -72,9 +87,12 @@ def update_conf_from_env(conf, prefix='LQR_WPSET_', enc='utf-8'):
 		t = type(v)
 		if t in [int, float, bytes]: conf[k] = t(v_env)
 		elif t is unicode: conf[k] = v_env.decode(enc)
-		else:
-			raise NotImplementedError( 'Parsing of'
-				' {!r} value from env is not implemented'.format(k) )
+		elif t is bool:
+			if v_env in ['t', 'true', 'y', 'yes', '1', 'on']: v_env = True
+			elif v_env in ['', 'f', 'false', 'n', 'no', '0', 'off']: v_env = False
+			else: raise ValueError('Unable to parse boolean value from {!r} (var: {})'.format(v_env, k))
+			conf[k] = v_env
+		else: raise NotImplementedError('Parsing of {!r} value from env is not implemented'.format(k))
 update_conf_from_env(conf)
 conf = type(b'Conf', (object,), conf) # for easier attr-access
 
@@ -394,7 +412,7 @@ def lqr_wpset(path):
 			re.sub( r'[\n=+/]', '',
 				hashlib.sha256(b'\0'.join(map(bytes, cache_key)))\
 					.digest().encode('base64') )[:20] ))
-		if os.path.exists(cache_path):
+		if not conf.recache and os.path.exists(cache_path):
 			path_source, cached = cache_path, True
 
 	try: image = pdb.gimp_file_load(path_source, path_source)
@@ -411,10 +429,17 @@ def lqr_wpset(path):
 			## Check whether size/aspect difference isn't too great
 			aspects = float(w)/h, float(image.width)/image.height
 			diff_aspect = abs(aspects[0] - aspects[1])
-			diff_size = float(image.width * image.height) / (w*h)
-			if diff_aspect > conf.max_aspect_diff or diff_size < 1.0/conf.max_smaller_diff:
-				pdb.gimp_message( 'Aspect diff: {0:.2f} (max: {1:.2f}), size diff: {2:.2f} (min: {3:.2f})'\
-					.format(diff_aspect, conf.max_aspect_diff, diff_size, 1.0/conf.max_smaller_diff) )
+			diff_size = [
+				float(image.width)/w, float(image.height)/h,
+				float(image.width * image.height) / (w*h) ]
+			diff_size_chk = list((1.0 / getattr( conf,
+				'max_size_diff_{}'.format(k) )) for k in ['w', 'h', 'area'])
+			if diff_aspect > conf.max_aspect_diff\
+					or any((v < chk) for v, chk in zip(diff_size, diff_size_chk)):
+				pdb.gimp_message(
+					( 'Aspect diff: {:.2f} (max: {:.2f}), size'
+						' diff (w/h/area): {:.2f}/{:.2f}/{:.2f} (min: {:.2f}/{:.2f}/{:.2f})' )\
+					.format(diff_aspect, conf.max_aspect_diff, *(diff_size + diff_size_chk)) )
 				pdb.gimp_message('WPS-ERR:next')
 				return
 
