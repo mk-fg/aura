@@ -21,38 +21,30 @@ __status__ = 'beta'
 __blurb__ = 'LQRify to desktop'
 __description__ = 'LQR-rescale image to desktop size and set as a background.'
 
-max_aspect_diff = 0.7 # 16/9 - 4/3 = 0.444
-max_smaller_diff = 3 # don't process images N times smaller by area (w*h)
-min_prescale_diff = 0.3 # use cubic on larger images (preserving aspect), then lqr
-label_offset = 10, 10
-label_colors = [0]*3, [255]*3, (255, 0, 0),\
-	(0, 255, 0), (0, 0, 255), (255, 255, 0), (0, 255, 255) # most contrast one will be chosen
-font_filename = 'URW Palladio L Medium', 16
-font_timestamp = 'URW Palladio L Medium', 11
+conf = dict(
+	max_aspect_diff = 0.7, # 16/9 - 4/3 = 0.444
+	max_smaller_diff = 3, # don't process images N times smaller by area (w*h)
+	min_prescale_diff = 0.3, # use cubic on larger images (preserving aspect), then lqr
+	label_offset = [10, 10],
+	label_colors = [
+		[0]*3, [255]*3, (255, 0, 0),
+		(0, 255, 0), (0, 0, 255), (255, 255, 0), (0, 255, 255) ], # most contrast one will be chosen
+	font_filename = ('URW Palladio L Medium', 16),
+	font_timestamp = ('URW Palladio L Medium', 11),
 
-# Chance of doing a horizontal flip of the image (0 < x < 1.0, 0 - disabled)
-# Is here to add variety, especially with some persistent window placement
-hflip_chance = 0.5
+	# Chance of doing a horizontal flip of the image (0 < x < 1.0, 0 - disabled)
+	# Is here to add variety, especially with some persistent window placement
+	hflip_chance = 0.5,
 
-# Asterisk will be replaced by temporary id for created images
-# All files matching the pattern will be a subject to cleanup!
-result_path = '/tmp/.lqr_wpset_bg.*.png'
+	# Asterisk will be replaced by temporary id for created images
+	# All files matching the pattern will be a subject to cleanup!
+	result_path = '/tmp/.lqr_wpset_bg.*.png',
 
-# Use cache, if enabled via env
-import os
-cache_dir = os.environ.get('LQR_WPSET_CACHE_DIR')
-if cache_dir:
-	def get_cache_watermarks():
-		res = list()
-		for k in ['SIZE', 'CHANCE']:
-			v = os.environ.get('LQR_WPSET_CACHE_{0}'.format(k)) or 0
-			try:
-				v = float(v)
-				if v < 0: raise ValueError()
-			except ValueError: v = 0
-			res.append(v)
-		return res
-	cache_size, cache_cleanup = get_cache_watermarks()
+	# Cache for scaled images is disabled by default
+	cache_dir = '',
+	cache_size = 0.0,
+	cache_cleanup = 0.0,
+)
 
 # see also extra-bulky "label_tags" definition in the script's tail
 ####################
@@ -71,6 +63,20 @@ re_type = type(re.compile(''))
 
 from gimpfu import *
 import gimp
+
+
+def update_conf_from_env(conf, prefix='LQR_WPSET_', enc='utf-8'):
+	for k,v in conf.viewitems():
+		v_env = os.environ.get('{}{}'.format(prefix, k.upper()))
+		if v_env is None: continue
+		t = type(v)
+		if t in [int, float, bytes]: conf[k] = t(v_env)
+		elif t is unicode: conf[k] = v_env.decode(enc)
+		else:
+			raise NotImplementedError( 'Parsing of'
+				' {!r} value from env is not implemented'.format(k) )
+update_conf_from_env(conf)
+conf = type(b'Conf', (object,), conf) # for easier attr-access
 
 
 def process_tags(path):
@@ -116,12 +122,12 @@ def pick_contrast_color(bg_color):
 	try: from colormath.color_objects import RGBColor
 	except ImportError: # use simple sum(abs(R1-R2), ...) algorithm
 		color_diffs = dict((sum( abs(c1 - c2) for c1,c2 in
-			it.izip(bg_color, color) ), color) for color in label_colors)
+			it.izip(bg_color, color) ), color) for color in conf.label_colors)
 	else: # CIEDE2000 algorithm, if available (see wiki)
 		color_bg_diff = RGBColor(*bg_color).delta_e
 		color_diffs = dict(
 			(color_bg_diff(RGBColor(*color)), color)
-			for color in label_colors )
+			for color in conf.label_colors )
 	return tuple(color_diffs[max(color_diffs)])
 
 
@@ -320,24 +326,24 @@ def image_add_label(image, layer_image, meta):
 	# First, render all the the text boxes
 	# Image title, larger than the rest of the tags
 	label_title = pdb.gimp_text_fontname( image, layer_image,
-		label_offset[0], label_offset[1], meta.pop('title'),
-		-1, True, font_filename[1], PIXELS, font_filename[0] )
+		conf.label_offset[0], conf.label_offset[1], meta.pop('title'),
+		-1, True, conf.font_filename[1], PIXELS, conf.font_filename[0] )
 	pdb.gimp_floating_sel_to_layer(label_title)
 	# Tags, ordered according to label_tags
 	meta = list( (label, meta.pop(label))
 		for label in it.imap(op.itemgetter(0), label_tags)
 		if label in meta ) + list(meta.iteritems())
-	offset_layer = 0.5 * font_timestamp[1]
+	offset_layer = 0.5 * conf.font_timestamp[1]
 	offset_y = label_title.offsets[1] + label_title.height + offset_layer
 	label_keys = pdb.gimp_text_fontname( image, layer_image,
-		label_title.offsets[1] + 3 * font_timestamp[1], offset_y,
+		label_title.offsets[1] + 3 * conf.font_timestamp[1], offset_y,
 		'\n'.join(it.imap(op.itemgetter(0), meta)),
-		-1, True, font_timestamp[1], PIXELS, font_timestamp[0] )
+		-1, True, conf.font_timestamp[1], PIXELS, conf.font_timestamp[0] )
 	pdb.gimp_floating_sel_to_layer(label_keys)
 	label_vals = pdb.gimp_text_fontname( image, layer_image,
 		label_keys.offsets[0] + label_keys.width + offset_layer, offset_y,
 		'\n'.join(it.imap(op.itemgetter(1), meta)),
-		-1, True, font_timestamp[1], PIXELS, font_timestamp[0] )
+		-1, True, conf.font_timestamp[1], PIXELS, conf.font_timestamp[0] )
 	pdb.gimp_floating_sel_to_layer(label_vals)
 	label_layers = label_title, label_keys, label_vals
 
@@ -345,8 +351,8 @@ def image_add_label(image, layer_image, meta):
 	#  and pick the most distant color from label_colors
 	label_geom = tuple(( layer.offsets + op.attrgetter(
 		'width', 'height')(layer) ) for layer in label_layers)
-	label_geom = label_offset + tuple( # (offsets + dimensions)
-		max((g[i] + g[2+i] - label_offset[i]) for g in geoms)
+	label_geom = tuple(conf.label_offset) + tuple( # (offsets + dimensions)
+		max((g[i] + g[2+i] - conf.label_offset[i]) for g in geoms)
 		for i,geoms in enumerate([label_geom]*2) )
 	pdb.gimp_context_set_feather(False)
 	pdb.gimp_context_set_feather_radius(0, 0)
@@ -382,9 +388,9 @@ def lqr_wpset(path):
 	w, h = gdk.screen_width(), gdk.screen_height()
 
 	path_source, cache_path, cached = path, None, False
-	if cache_dir:
+	if conf.cache_dir:
 		cache_key = os.path.realpath(path), os.stat(path).st_mtime, w, h
-		cache_path = os.path.join(cache_dir, b'{0}.png'.format(
+		cache_path = os.path.join(conf.cache_dir, b'{0}.png'.format(
 			re.sub( r'[\n=+/]', '',
 				hashlib.sha256(b'\0'.join(map(bytes, cache_key)))\
 					.digest().encode('base64') )[:20] ))
@@ -406,9 +412,9 @@ def lqr_wpset(path):
 			aspects = float(w)/h, float(image.width)/image.height
 			diff_aspect = abs(aspects[0] - aspects[1])
 			diff_size = float(image.width * image.height) / (w*h)
-			if diff_aspect > max_aspect_diff or diff_size < 1.0/max_smaller_diff:
+			if diff_aspect > conf.max_aspect_diff or diff_size < 1.0/conf.max_smaller_diff:
 				pdb.gimp_message( 'Aspect diff: {0:.2f} (max: {1:.2f}), size diff: {2:.2f} (min: {3:.2f})'\
-					.format(diff_aspect, max_aspect_diff, diff_size, 1.0/max_smaller_diff) )
+					.format(diff_aspect, conf.max_aspect_diff, diff_size, 1.0/conf.max_smaller_diff) )
 				pdb.gimp_message('WPS-ERR:next')
 				return
 
@@ -426,21 +432,21 @@ def lqr_wpset(path):
 			except gimp.error: pass # missing plugin
 
 			image_rescale( image, layer_image, w, h,
-				(diff_size > min_prescale_diff) and aspects )
+				(diff_size > conf.min_prescale_diff) and aspects )
 
 			if cache_path:
 				pdb.gimp_file_save(image, layer_image, cache_path, cache_path)
 
 		## Do the random horizontal flip of the image layer, if specified
-		if hflip_chance > 0 and random.random() < hflip_chance:
+		if conf.hflip_chance > 0 and random.random() < conf.hflip_chance:
 			pdb.gimp_item_transform_flip_simple(
 				layer_image, ORIENTATION_HORIZONTAL, True, 0 )
 
 		layer_image = image_add_label(image, layer_image, meta)
 
 		## Save image to a temporary file and set it as a bg, cleanup older images
-		old_files = glob.glob(result_path)
-		prefix, suffix = result_path.split('*', 1)
+		old_files = glob.glob(conf.result_path)
+		prefix, suffix = conf.result_path.split('*', 1)
 		tmp_dir, prefix = prefix.rsplit('/', 1)
 		fd, tmp_file_path = mkstemp(prefix=prefix, suffix=suffix, dir=tmp_dir)
 		pdb.gimp_file_save(image, layer_image, tmp_file_path, tmp_file_path)
@@ -456,16 +462,16 @@ def lqr_wpset(path):
 		gimp.set_foreground(bak_colors[0]), gimp.set_background(bak_colors[1])
 
 	## Cache cleanup
-	if cache_dir and random.random() < (cache_cleanup / 100.0):
+	if conf.cache_dir and random.random() < (conf.cache_cleanup / 100.0):
 		files = list()
-		for p in map(ft.partial(os.path.join, cache_dir), os.listdir(cache_dir)):
+		for p in map(ft.partial(os.path.join, conf.cache_dir), os.listdir(conf.cache_dir)):
 			try: s = os.stat(p)
 			except (OSError, IOError):
 				pdb.gimp_message('WPS-WARN: Unable to access cache path: {!r}'.format(p))
 				continue
 			files.append((s.st_mtime, s.st_size, p))
 		files = sorted(files, reverse=True)
-		while files and sum(map(op.itemgetter(1), files)) > cache_size:
+		while files and sum(map(op.itemgetter(1), files)) > conf.cache_size:
 			mtime, size, p = files.pop() # oldest one
 			os.unlink(p)
 
