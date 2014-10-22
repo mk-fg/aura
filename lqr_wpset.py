@@ -33,7 +33,7 @@ conf = dict(
 	max_aspect_diff = 0.7, # same for aspect ratio, e.g. 16/9 - 4/3 = 0.444
 
 	# If width/aspect is too different, scale image to screen height and place
-	#  it according to "gravity", using "bg_color" for the rest of the screen
+	#  it according to "gravity", using "bg_solid" or "edge_stretch" for the rest of the screen
 	diff_w_scale_to_h = True,
 	diff_w_gravity = 25.0, # 0 - left, 50 - center, 100 - right, w percents from screen left
 	diff_w_bg_edge = 25, # blended edge, px
@@ -41,7 +41,7 @@ conf = dict(
 	diff_w_bg_solid_color = '000000', # format: rrggbb (hex)
 	diff_w_bg_edge_stretch = True, # pick N pixels from edge and stretch-blur these
 	diff_w_bg_edge_stretch_opacity = 70.0, # 0 < x <= 100
-	diff_w_bg_edge_stretch_blur = 20.0,
+	diff_w_bg_edge_stretch_blur = 20.0, # 0 - disabled
 
 	label_offset = [10, 10],
 	label_colors = [
@@ -326,11 +326,15 @@ def image_meta(path, image):
 	return meta_base
 
 
-def edge_stretch(image, layer, a, b, d):
-	w, h = image.width, image.height
+def edge_checks(w, h, a, b, d):
 	assert d in ['left', 'right'], d
 	if d == 'left' and a <= 0: return
 	elif d == 'right' and b >= w: return
+	return True
+
+def edge_stretch(image, layer, a, b, d):
+	w, h = image.width, image.height
+	if not edge_checks(w,h,a,b,d): return
 
 	pdb.gimp_image_select_rectangle(
 		image, CHANNEL_OP_REPLACE, a, 0, b-a, h )
@@ -344,11 +348,15 @@ def edge_stretch(image, layer, a, b, d):
 	pdb.gimp_layer_scale(layer_bg, w_bg, h, True)
 	pdb.gimp_layer_set_offsets(layer_bg, dx, 0)
 
-	# Blur produced layer
 	r = conf.diff_w_bg_edge_stretch_blur
-	pdb.plug_in_gauss(image, layer_bg, r, r, 0)
+	if r > 0: pdb.plug_in_gauss(image, layer_bg, r, r, 0)
 
-	# Blended fg-to-bg transition from a to b
+	alpha = conf.diff_w_bg_edge_stretch_opacity
+	if 0 < alpha < 100: pdb.gimp_layer_set_opacity(layer_bg, alpha)
+
+def edge_blend(image, layer, a, b, d):
+	w, h = image.width, image.height
+	if not edge_checks(w,h,a,b,d): return
 	pdb.gimp_context_set_foreground((255,255,255))
 	pdb.gimp_context_set_background((0,0,0))
 	mask = pdb.gimp_layer_create_mask(layer, ADD_WHITE_MASK)
@@ -358,8 +366,6 @@ def edge_stretch(image, layer, a, b, d):
 		FG_BG_RGB_MODE, NORMAL_MODE, GRADIENT_LINEAR,
 		100, 0, REPEAT_NONE, False, False, 0, 0, True, ma, 0, mb, 0 )
 	pdb.gimp_layer_remove_mask(layer, MASK_APPLY)
-
-	pdb.gimp_layer_set_opacity(layer_bg, conf.diff_w_bg_edge_stretch_opacity)
 
 def image_rescale_to_part(image, layer, w, h, aspect):
 	# Resize
@@ -373,11 +379,9 @@ def image_rescale_to_part(image, layer, w, h, aspect):
 		pdb.gimp_item_transform_flip_simple(layer, ORIENTATION_HORIZONTAL, True, 0)
 
 	# Scale canvas
-	a, b, ew = 0, image.width, conf.diff_w_bg_edge
-	dx = w * (conf.diff_w_gravity * 0.01) - (b / 2.0)
-	if dx < 0: dx = 0
-	elif dx + b > w: dx = w - b
-	dx = int(round(dx, 0))
+	a, b = 0, image.width
+	ew, dx = min(b, conf.diff_w_bg_edge), max(0, min(100, conf.diff_w_gravity))
+	dx = int(round(max(0, min(w - b, w * (dx * 0.01) - (b / 2.0))), 0))
 	pdb.gimp_image_resize(image, w, h, dx, 0)
 	a, b = dx, b + dx
 
@@ -392,8 +396,13 @@ def image_rescale_to_part(image, layer, w, h, aspect):
 		pdb.gimp_image_lower_item_to_bottom(image, layer_bg)
 		c = conf.diff_w_bg_solid_color
 		c = tuple(int(c[n:n+2], 16) for n in xrange(0,6,2))
+		assert all((cc <= 0xff) for cc in c), c
 		pdb.gimp_context_set_background(c)
 		pdb.gimp_drawable_fill(layer_bg, BACKGROUND_FILL)
+
+	if conf.diff_w_bg_edge_stretch or conf.diff_w_bg_solid:
+		edge_blend(image, layer, a, a + ew, 'left')
+		edge_blend(image, layer, b - ew, b, 'right')
 
 	return pdb.gimp_image_flatten(image)
 

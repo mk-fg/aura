@@ -27,7 +27,7 @@ Intended usage is to point it to the path(s) with random image collection(s)
 and let it adjust any suitable ones to the current screen size. It has no gui
 and no capabilities to dowload images from anywhere.
 
-See [project homepage](http://desktop-aura.sf.net/) for details.
+See [old sf.net project homepage](http://desktop-aura.sf.net/) for more details.
 
 
 Installation
@@ -87,9 +87,9 @@ option is usually "/usr/lib/gimp/2.0/plug-ins", but your mileage may vary across
 distros, read the gimp/distro docs if in doubt) and be marked as executable.
 Here's what I mean:
 
-    mkdir -p ~/.gimp-2.8/plug-ins/
-    cp lqr_wpset.py ~/.gimp-2.8/plug-ins/
-    chmod +x ~/.gimp-2.8/plug-ins/lqr_wpset.py
+	mkdir -p ~/.gimp-2.8/plug-ins/
+	cp lqr_wpset.py ~/.gimp-2.8/plug-ins/
+	chmod +x ~/.gimp-2.8/plug-ins/lqr_wpset.py
 
 Bash script itself ("aura") will work from any path, just run it.
 
@@ -158,25 +158,11 @@ put these lines there:
 	cache_cleanup_chance=5
 
 Also, see the beginning of a python plugin (lqr_wpset) for some image
-processing options:
+processing options.
+As mentioned there, these can be overidden via `LQR_WPSET_*` env vars.
 
-	max_aspect_diff = 0.5 # 16/9 - 4/3 = 0.444
-	max_smaller_diff = 2 # don't process images N times smaller by area (w*h)
-	min_prescale_diff = 0.3 # use cubic on larger images (preserving aspect), then lqr
-
-	label_offset = 10, 10
-	label_colors = [0]*3, [255]*3, (255, 0, 0),\
-		(0, 255, 0), (0, 0, 255), (255, 255, 0), (0, 255, 255) # most contrast one will be chosen
-
-	font_filename = 'URW Palladio L Medium', 16
-	font_timestamp = 'URW Palladio L Medium', 11
-
-	tmp_dir = '/tmp'
-
-Not that there should be any need to change this stuff, but if there is - it's
-just a shell/python.
-
-I just put something like `aura -d ~/media/picz` into my ~/.xinitrc.
+Script can be enabled for desktop session by putting something like `aura -d
+~/media/picz` into ~/.xinitrc, or via whatever systemd user session unit.
 
 
 Copying
