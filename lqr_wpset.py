@@ -44,9 +44,15 @@ conf = dict(
 	diff_w_bg_edge_stretch_blur = 20.0, # 0 - disabled
 
 	label_offset = [10, 10],
-	label_colors = [
-		[0]*3, [255]*3, (255, 0, 0),
-		(0, 255, 0), (0, 0, 255), (255, 255, 0), (0, 255, 255) ], # most contrast one will be chosen
+	label_colors =( # most contrast one (with bg) will be picked
+		[ '8dd3c7','ffffb3','bebada','fb8072','80b1d3', # d3 colorbrewer Set3
+			'fdb462','b3de69','fccde5','d9d9d9','bc80bd','ccebc5','ffed6f' ]
+		+ [ 'a6cee3','1f78b4','b2df8a','33a02c','fb9a99', # d3 colorbrewer Paired
+			'e31a1c','fdbf6f','ff7f00','cab2d6','6a3d9a','ffff99','b15928' ]
+		+ ['543005','8c510a','bf812d','dfc27d','f6e8c3', # d3 colorbrewer BuBG
+			'f5f5f5','c7eae5','80cdc1','35978f','01665e','003c30']
+		+ ['fff7fb','ece2f0','d0d1e6','a6bddb', # d3 colorbrewer PuBuGn
+			'67a9cf','3690c0','02818a','016c59','014636'] ),
 	font_filename = ('URW Palladio L Medium', 16),
 	font_timestamp = ('URW Palladio L Medium', 11),
 
@@ -75,7 +81,7 @@ import itertools as it, operator as op, functools as ft
 from datetime import datetime
 from tempfile import mkstemp
 from gtk import gdk
-import os, sys, glob, collections, random, hashlib
+import os, sys, types, glob, collections, random, hashlib
 
 import re
 re_type = type(re.compile(''))
@@ -83,6 +89,10 @@ re_type = type(re.compile(''))
 from gimpfu import *
 import gimp
 
+
+def pdb_print(*data):
+	from pprint import pformat
+	pdb.gimp_message(pformat(data))
 
 def update_conf_from_env(conf, prefix='LQR_WPSET_', enc='utf-8'):
 	for k,v in conf.viewitems():
@@ -104,7 +114,9 @@ conf = type(b'Conf', (object,), conf) # for easier attr-access
 def process_tags(path):
 	meta = dict()
 	try: import pyexiv2
-	except ImportError: pass # TODO: gimp is capable of parsing XMP on it's own
+	except ImportError as err: # TODO: gimp is capable of parsing XMP on it's own
+		pdb.gimp_message( 'Unable to import "pyexiv2"'
+			' module ({}), not displaying image tags'.format(err) )
 	else:
 		try:
 			tags = pyexiv2.ImageMetadata(path)
@@ -141,15 +153,25 @@ def process_tags(path):
 	return meta
 
 def pick_contrast_color(bg_color):
-	try: from colormath.color_objects import RGBColor
-	except ImportError: # use simple sum(abs(R1-R2), ...) algorithm
+	for n, c in enumerate(conf.label_colors):
+		if isinstance(c, types.StringTypes):
+			conf.label_colors[n] = tuple(int(c[n:n+2], 16) for n in xrange(0,6,2))
+	try:
+		from colormath.color_objects import sRGBColor, LabColor
+		from colormath.color_diff import delta_e_cie2000
+		from colormath.color_conversions import convert_color
+	except ImportError as err: # use simple sum(abs(R1-R2), ...) algorithm
+		pdb.gimp_message( 'Unable to import "colormath"'
+			' module ({}), using simplier color-diff calculation'.format(err) )
 		color_diffs = dict((sum( abs(c1 - c2) for c1,c2 in
 			it.izip(bg_color, color) ), color) for color in conf.label_colors)
 	else: # CIEDE2000 algorithm, if available (see wiki)
-		color_bg_diff = RGBColor(*bg_color).delta_e
+		make_color = lambda c: convert_color(sRGBColor(*c, is_upscaled=True), LabColor)
+		bg_color = make_color(bg_color)
 		color_diffs = dict(
-			(color_bg_diff(RGBColor(*color)), color)
-			for color in conf.label_colors )
+			(delta_e_cie2000(bg_color, make_color(c)), c)
+			for c in conf.label_colors )
+	# pdb_print(sorted(color_diffs.items(), reverse=True))
 	return tuple(color_diffs[max(color_diffs)])
 
 
