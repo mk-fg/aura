@@ -524,7 +524,9 @@ def lqr_wpset(path):
 			diff_scale = False
 			if diff_aspect > conf.max_aspect_diff\
 					or any((v < chk) for v, chk in zip(diff_size, diff_size_chk)):
-				if not conf.diff_w_scale_to_h or diff_size[1] < diff_size_chk[1]:
+				if not conf.diff_w_scale_to_h\
+						or diff_size[1] < diff_size_chk[1]\
+						or aspects[0] - aspects[1] < 0: # aspect_diff < 0 = too wide image
 					pdb.gimp_message(
 						( 'Aspect diff: {:.2f} (max: {:.2f}), size'
 							' diff (w/h/area): {:.2f}/{:.2f}/{:.2f} (min: {:.2f}/{:.2f}/{:.2f})' )\
@@ -661,7 +663,7 @@ register(
 	'lqr_wpset',
 	__blurb__, __description__,
 	__author__, __copyright__,
-	'2012', 'LQRify to desktop', 'RGB*',
+	'2014', 'LQRify to desktop', 'RGB*',
 	[(PF_FILE, 'file_name', 'Input file name', '')], [],
 	lqr_wpset )
 main()
