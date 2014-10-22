@@ -509,6 +509,7 @@ def lqr_wpset(path):
 
 	layer_image = image.active_layer
 	bak_colors = pdb.gimp_context_get_foreground(), pdb.gimp_context_get_background()
+	diff_scale = False
 	try:
 		if not cached:
 			image_crop(image, layer_image)
@@ -521,7 +522,6 @@ def lqr_wpset(path):
 				float(image.width * image.height) / (w*h) ]
 			diff_size_chk = list((1.0 / getattr( conf,
 				'max_size_diff_{}'.format(k) )) for k in ['w', 'h', 'area'])
-			diff_scale = False
 			if diff_aspect > conf.max_aspect_diff\
 					or any((v < chk) for v, chk in zip(diff_size, diff_size_chk)):
 				if not conf.diff_w_scale_to_h\
