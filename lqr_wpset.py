@@ -94,6 +94,12 @@ def pdb_print(*data):
 	from pprint import pformat
 	pdb.gimp_message(pformat(data))
 
+def gimp_color(c):
+	if c and isinstance(c, types.StringTypes):
+		c = tuple(int(c[n:n+2], 16) for n in xrange(0,6,2))
+		assert all((cc <= 0xff) for cc in c), c
+	return c
+
 def update_conf_from_env(conf, prefix='LQR_WPSET_', enc='utf-8'):
 	for k,v in conf.viewitems():
 		v_env = os.environ.get('{}{}'.format(prefix, k.upper()))
@@ -107,6 +113,8 @@ def update_conf_from_env(conf, prefix='LQR_WPSET_', enc='utf-8'):
 			else: raise ValueError('Unable to parse boolean value from {!r} (var: {})'.format(v_env, k))
 			conf[k] = v_env
 		else: raise NotImplementedError('Parsing of {!r} value from env is not implemented'.format(k))
+	conf['label_colors'] = list(gimp_color(c) for c in conf['label_colors'])
+	conf['diff_w_bg_solid_color'] = gimp_color(conf['diff_w_bg_solid_color'])
 update_conf_from_env(conf)
 conf = type(b'Conf', (object,), conf) # for easier attr-access
 
@@ -153,9 +161,6 @@ def process_tags(path):
 	return meta
 
 def pick_contrast_color(bg_color):
-	for n, c in enumerate(conf.label_colors):
-		if isinstance(c, types.StringTypes):
-			conf.label_colors[n] = tuple(int(c[n:n+2], 16) for n in xrange(0,6,2))
 	try:
 		from colormath.color_objects import sRGBColor, LabColor
 		from colormath.color_diff import delta_e_cie2000
@@ -416,10 +421,7 @@ def image_rescale_to_part(image, layer, w, h, aspect):
 		layer_bg = pdb.gimp_layer_new(image, w, h, RGB_IMAGE, 'bg', 100.0, NORMAL_MODE)
 		pdb.gimp_image_add_layer(image, layer_bg, 1)
 		pdb.gimp_image_lower_item_to_bottom(image, layer_bg)
-		c = conf.diff_w_bg_solid_color
-		c = tuple(int(c[n:n+2], 16) for n in xrange(0,6,2))
-		assert all((cc <= 0xff) for cc in c), c
-		pdb.gimp_context_set_background(c)
+		pdb.gimp_context_set_background(conf.diff_w_bg_solid_color)
 		pdb.gimp_drawable_fill(layer_bg, BACKGROUND_FILL)
 
 	if conf.diff_w_bg_edge_stretch or conf.diff_w_bg_solid:
