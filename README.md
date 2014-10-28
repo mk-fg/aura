@@ -61,17 +61,12 @@ Optional stuff (will be used if available):
 	module](http://www.freedesktop.org/wiki/Software/DBusBindings#dbus-python) -
 	to set background in xfce and enlightenment (e17) window managers.
 
-* [colormath python module](http://code.google.com/p/python-colormath/) - to
-	pick the most contrast color for label using CIEDE2000 (simplier algorithm
-	will be used otherwise).
+These are probably best to get with the distro package manager.
 
-These are probably best to get using the package manager, but colormath
-(pure-python module, no deps) can be installed with a simple "easy_install
-colormath" or "pip colormath" command.
+Project releases can be downloaded from
+[this page](http://sf.net/projects/desktop-aura/files/),
+just one latest .tar.gz will do.
 
-Project files can be downloaded from [this
-page](http://sf.net/projects/desktop-aura/files/), just one latest .tar.gz will
-do.
 Tarball can be extracted with regular double-click from some GUI (like GNOME
 Nautilus shell, KDE Dolphin, XFCE Thunar, etc), tapping enter on it inside
 midnight commander or typing "tar xf /path/to/aura-X.Y.tar.gz" in some shell.

@@ -43,16 +43,9 @@ conf = dict(
 	diff_w_bg_edge_stretch_opacity = 70.0, # 0 < x <= 100
 	diff_w_bg_edge_stretch_blur = 20.0, # 0 - disabled
 
-	label_offset = [10, 10],
-	label_colors =( # most contrast one (with bg) will be picked
-		[ '8dd3c7','ffffb3','bebada','fb8072','80b1d3', # d3 colorbrewer Set3
-			'fdb462','b3de69','fccde5','d9d9d9','bc80bd','ccebc5','ffed6f' ]
-		+ [ 'a6cee3','1f78b4','b2df8a','33a02c','fb9a99', # d3 colorbrewer Paired
-			'e31a1c','fdbf6f','ff7f00','cab2d6','6a3d9a','ffff99','b15928' ]
-		+ ['543005','8c510a','bf812d','dfc27d','f6e8c3', # d3 colorbrewer BuBG
-			'f5f5f5','c7eae5','80cdc1','35978f','01665e','003c30']
-		+ ['fff7fb','ece2f0','d0d1e6','a6bddb', # d3 colorbrewer PuBuGn
-			'67a9cf','3690c0','02818a','016c59','014636'] ),
+	label_offset = (10, 10),
+	label_colors = ('ffffff', '000000'), # fg, outline
+	label_outline_opacity = 60.0,
 	font_filename = ('URW Palladio L Medium', 16),
 	font_timestamp = ('URW Palladio L Medium', 11),
 
@@ -90,12 +83,13 @@ from gimpfu import *
 import gimp
 
 
-def pdb_print(*data):
+def dump(*data):
 	from pprint import pformat
 	pdb.gimp_message(pformat(data))
 
 def gimp_color(c):
 	if c and isinstance(c, types.StringTypes):
+		c = c.lstrip('#')
 		c = tuple(int(c[n:n+2], 16) for n in xrange(0,6,2))
 		assert all((cc <= 0xff) for cc in c), c
 	return c
@@ -159,25 +153,6 @@ def process_tags(path):
 				except KeyError: pass
 				else: break
 	return meta
-
-def pick_contrast_color(bg_color):
-	try:
-		from colormath.color_objects import sRGBColor, LabColor
-		from colormath.color_diff import delta_e_cie2000
-		from colormath.color_conversions import convert_color
-	except ImportError as err: # use simple sum(abs(R1-R2), ...) algorithm
-		pdb.gimp_message( 'Unable to import "colormath"'
-			' module ({}), using simplier color-diff calculation'.format(err) )
-		color_diffs = dict((sum( abs(c1 - c2) for c1,c2 in
-			it.izip(bg_color, color) ), color) for color in conf.label_colors)
-	else: # CIEDE2000 algorithm, if available (see wiki)
-		make_color = lambda c: convert_color(sRGBColor(*c, is_upscaled=True), LabColor)
-		bg_color = make_color(bg_color)
-		color_diffs = dict(
-			(delta_e_cie2000(bg_color, make_color(c)), c)
-			for c in conf.label_colors )
-	# pdb_print(sorted(color_diffs.items(), reverse=True))
-	return tuple(color_diffs[max(color_diffs)])
 
 
 def set_background(path):
@@ -486,26 +461,22 @@ def image_add_label(image, layer_image, meta):
 		image, CHANNEL_OP_REPLACE,
 		label_geom[0], label_geom[1],
 		label_geom[2], label_geom[3] )
-	label_bg_color = tuple(
-		int(round(pdb.gimp_histogram(layer_image, channel, 0, 255)[0], 0)) # mean intensity value
-		for channel in [HISTOGRAM_RED, HISTOGRAM_GREEN, HISTOGRAM_BLUE] )
-	label_fg_color = pick_contrast_color(label_bg_color)
-	pdb.gimp_context_set_foreground(label_fg_color)
-	pdb.gimp_context_set_background(label_bg_color)
+	pdb.gimp_context_set_foreground(conf.label_colors[0])
+	pdb.gimp_context_set_background(conf.label_colors[1])
+	pdb.gimp_context_set_antialias(True)
+	pdb.gimp_context_set_feather(True)
 	# Set the picked color for all label layers, draw outlines
 	label_outline = pdb.gimp_layer_new(
-		image, image.width, image.height,
-		RGB_IMAGE, 'label_outline', 30.0, NORMAL_MODE )
+		image, image.width, image.height, RGBA_IMAGE,
+		'label_outline', conf.label_outline_opacity, NORMAL_MODE )
 	pdb.gimp_image_add_layer(
 		image, label_outline, image.layers.index(layer_image) )
 	for layer in label_layers:
-		pdb.gimp_text_layer_set_color(layer, label_fg_color)
+		pdb.gimp_text_layer_set_color(layer, conf.label_colors[0])
 		path = pdb.gimp_vectors_new_from_text_layer(image, layer)
 		pdb.gimp_image_insert_vectors(image, path, None, -1)
-		pdb.gimp_context_set_antialias(True)
-		pdb.gimp_context_set_feather(False)
 		pdb.gimp_image_select_item(image, CHANNEL_OP_REPLACE, path)
-		pdb.gimp_selection_grow(image, 1), pdb.gimp_selection_border(image, 1)
+		pdb.gimp_selection_grow(image, 1)
 		pdb.gimp_edit_fill(label_outline, BACKGROUND_FILL)
 
 	# Meld all the layers together, return new "image" layer
