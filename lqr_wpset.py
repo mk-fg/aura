@@ -24,6 +24,9 @@ __description__ = 'LQR-rescale image to desktop size and set as a background.'
 # All simple values here can be overidden via LQR_WPSET_* env vars
 # Example: LQR_WPSET_MAX_ASPECT_DIFF=0.2 LQR_WPSET_RECACHE=t ...
 conf = dict(
+	# Methods to try setting bg with, separated by spaces
+	bg_set_methods = 'gsettings gconf xfconf enlightenment x-root-window',
+
 	min_prescale_diff = 0.3, # use cubic on larger images (preserving aspect), then lqr
 
 	# Don't process images N times smaller by width/height or area (w*h)
@@ -109,6 +112,7 @@ def update_conf_from_env(conf, prefix='LQR_WPSET_', enc='utf-8'):
 		else: raise NotImplementedError('Parsing of {!r} value from env is not implemented'.format(k))
 	conf['label_colors'] = list(gimp_color(c) for c in conf['label_colors'])
 	conf['diff_w_bg_solid_color'] = gimp_color(conf['diff_w_bg_solid_color'])
+	conf['bg_set_methods'] = conf['bg_set_methods'].split()
 update_conf_from_env(conf)
 conf = type(b'Conf', (object,), conf) # for easier attr-access
 
@@ -160,53 +164,60 @@ def set_background(path):
 	#  asynchronously, so there's no way of knowing when the image will
 	#  actually be used
 
-	## GSettings - newer GNOME, Unity
-	# Using gi.repository.Gio here directly is tricky alongside gimp's gtk2
-	from subprocess import call
-	from urllib import quote
-	call([ 'gsettings', 'set',
-		'org.gnome.desktop.background', 'picture-uri',
-		'file://{0}'.format(quote(path)) ])
+	if 'gsettings' in conf.bg_set_methods:
+		## GSettings - newer GNOME, Unity
+		# Using gi.repository.Gio here directly is tricky alongside gimp's gtk2
+		from subprocess import call
+		from urllib import quote
+		call([ 'gsettings', 'set',
+			'org.gnome.desktop.background', 'picture-uri',
+			'file://{0}'.format(quote(path)) ])
 
-	## Gconf - older GNOME, XFCE/nautilus and such
-	try:
-		import gconf
-		gconf = gconf.client_get_default()
-		gconf.set_string(
-			'/desktop/gnome/background/picture_filename', path )
-	except ImportError: pass
+	if 'gconf' in conf.bg_set_methods:
+		## Gconf - older GNOME, XFCE/nautilus and such
+		try:
+			import gconf
+			gconf = gconf.client_get_default()
+			gconf.set_string(
+				'/desktop/gnome/background/picture_filename', path )
+		except ImportError: pass
 
-	try: import dbus
-	except ImportError: pass
-	else:
-
+	if 'xfconf' in conf.bg_set_methods:
 		## Xfconf (via dbus interface) - XFCE/xfdesktop
-		try:
-			xfconf = dbus.Interface(
-				dbus.SessionBus().get_object(
-					'org.xfce.Xfconf', '/org/xfce/Xfconf' ),
-				dbus_interface='org.xfce.Xfconf' )
-			for k,v in xfconf.GetAllProperties('xfce4-desktop', '/backdrop').iteritems():
-				if k.endswith('/image-path'): xfconf.SetProperty('xfce4-desktop', k, path)
-		except dbus.exceptions.DBusException: pass # no property/object/interface/etc
+		try: import dbus
+		except ImportError: pass
+		else:
+			try:
+				xfconf = dbus.Interface(
+					dbus.SessionBus().get_object(
+						'org.xfce.Xfconf', '/org/xfce/Xfconf' ),
+					dbus_interface='org.xfce.Xfconf' )
+				for k,v in xfconf.GetAllProperties('xfce4-desktop', '/backdrop').iteritems():
+					if k.endswith('/image-path'): xfconf.SetProperty('xfce4-desktop', k, path)
+			except dbus.exceptions.DBusException: pass # no property/object/interface/etc
 
-		## E17 edbus interface
-		try:
-			edbus = dbus.SessionBus().get_object(
-					'org.enlightenment.wm.service', '/org/enlightenment/wm/RemoteObject' )
-			dxc, dyc = edbus.GetVirtualCount(dbus_interface='org.enlightenment.wm.Desktop')
-			edbus = dbus.Interface( edbus,
-				dbus_interface='org.enlightenment.wm.Desktop.Background' )
-			for dx, dy in it.product(xrange(dxc), xrange(dyc)): edbus.Add(0, 0, dx, dy, path)
-		except dbus.exceptions.DBusException: pass # no property/object/interface/etc
+	if 'enlightenment' in conf.bg_set_methods:
+		## E17+ edbus interface
+		try: import dbus
+		except ImportError: pass
+		else:
+			try:
+				edbus = dbus.SessionBus().get_object(
+						'org.enlightenment.wm.service', '/org/enlightenment/wm/RemoteObject' )
+				dxc, dyc = edbus.GetVirtualCount(dbus_interface='org.enlightenment.wm.Desktop')
+				edbus = dbus.Interface( edbus,
+					dbus_interface='org.enlightenment.wm.Desktop.Background' )
+				for dx, dy in it.product(xrange(dxc), xrange(dyc)): edbus.Add(0, 0, dx, dy, path)
+			except dbus.exceptions.DBusException: pass # no property/object/interface/etc
 
-	## Paint X root window via pygtk
-	pb = gdk.pixbuf_new_from_file(path)
-	pm, mask = pb.render_pixmap_and_mask()
-	win = gdk.get_default_root_window()
-	win.set_back_pixmap(pm, False)
-	win.clear()
-	win.draw_pixbuf(gdk.GC(win), pb, 0, 0, 0, 0, -1, -1)
+	if 'x-root-window' in conf.bg_set_methods:
+		## Paint X root window via pygtk
+		pb = gdk.pixbuf_new_from_file(path)
+		pm, mask = pb.render_pixmap_and_mask()
+		win = gdk.get_default_root_window()
+		win.set_back_pixmap(pm, False)
+		win.clear()
+		win.draw_pixbuf(gdk.GC(win), pb, 0, 0, 0, 0, -1, -1)
 
 
 
