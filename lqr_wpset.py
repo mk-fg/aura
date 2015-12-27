@@ -207,7 +207,7 @@ def set_background(path):
 				dxc, dyc = edbus.GetVirtualCount(dbus_interface='org.enlightenment.wm.Desktop')
 				edbus = dbus.Interface( edbus,
 					dbus_interface='org.enlightenment.wm.Desktop.Background' )
-				for dx, dy in it.product(xrange(dxc), xrange(dyc)): edbus.Add(0, 0, dx, dy, path)
+				for dx, dy in it.product(xrange(dxc), xrange(dyc)): edbus.Add(0, dx, dy, path)
 			except dbus.exceptions.DBusException: pass # no property/object/interface/etc
 
 	if 'x-root-window' in conf.bg_set_methods:
