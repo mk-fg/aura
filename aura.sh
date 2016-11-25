@@ -175,7 +175,7 @@ trap_action= # set from trap handlers
 sleep_int() {
 	[[ "$action" != daemon ]] && {
 		[[ -n "$delay_daemon_on_oneshot_change" ]] && with_pid kill -USR1
-		break
+		return 1
 	}
 	sleep "$1" &
 	echo $! >"$pid"
@@ -185,7 +185,8 @@ sleep_int() {
 	[[ "$err" -gt 0 ]] && kill "-${err}" 0
 	echo $$ >"$pid"
 	# Sleep extension via recursion - hopefully this won't get too deep
-	[[ "$trap_action" = timer_reset ]] && sleep_int "$interval"
+	[[ "$trap_action" != timer_reset ]] || sleep_int "$interval"
+	return 0
 }
 
 ## Log update with rotation
@@ -218,7 +219,7 @@ while :; do
 	idle_time=$(xprintidle 2>/dev/null)
 	idle_time="$(( ${idle_time:-0} / 1000 ))"
 	if [[ "$idle_time" -gt "$activity_timeout" ]]; then
-		sleep_int "$recheck"
+		sleep_int "$recheck" || break
 		continue
 	fi
 
@@ -241,7 +242,7 @@ while :; do
 	fi
 	if [[ "$bg_count" -eq 0 ]]; then
 		echo >&2 "Error: no bgz found in the specified paths"
-		sleep_int "$recheck"
+		sleep_int "$recheck" || break
 		continue
 	fi
 
@@ -276,7 +277,7 @@ while :; do
 	# Check for unexpected errors
 	if [[ -n "$err" ]]; then
 		echo >&2 "Error: Failed setting bg, see log (${log_err}) for details"
-		sleep_int "$recheck"
+		sleep_int "$recheck" || break
 		continue
 	fi
 
@@ -287,5 +288,5 @@ while :; do
 	no_init= # reset oneshot --no-init flag
 	log "$log_hist" "${ts} (id: ${bg_n}): ${bg}"
 	echo "$(basename "${bg}")" >"$log_curr"
-	sleep_int "$interval"
+	sleep_int "$interval" || break
 done
