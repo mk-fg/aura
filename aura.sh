@@ -237,7 +237,8 @@ while :; do
 		fi
 	done
 	if [[ -n "$bg_list_update" ]]; then
-		readarray -t bg_list < <(find "${bg_paths[@]}" -type f \( -name '*.jpg' -o -name '*.png' \))
+		readarray -t bg_list < <(
+			find "${bg_paths[@]}" -type f \( -name '*.jpg' -o -name '*.png' \) | shuf )
 		bg_count="${#bg_list[@]}"
 	fi
 	if [[ "$bg_count" -eq 0 ]]; then
