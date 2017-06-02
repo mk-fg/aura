@@ -200,7 +200,7 @@ log() {
 	[[ ! -e "$cache_dir" ]] && { mkdir -p "$cache_dir" || exit 1; }
 	export LQR_WPSET_CACHE_DIR="$cache_dir"
 	export LQR_WPSET_CACHE_SIZE="$cache_cleanup_keep"
-	export LQR_WPSET_CACHE_CHANCE="$cache_cleanup_chance"
+	export LQR_WPSET_CACHE_CLEANUP="$cache_cleanup_chance"
 }
 
 
