@@ -25,7 +25,12 @@ __description__ = 'LQR-rescale image to desktop size and set as a background.'
 # Example: LQR_WPSET_MAX_ASPECT_DIFF=0.2 LQR_WPSET_RECACHE=t ...
 conf = dict(
 	# Methods to try setting bg with, separated by spaces
+	# Ones that support multiple monitors: enlightenment x-root-window
 	bg_set_methods = 'gsettings gconf xfconf enlightenment x-root-window',
+
+	# Physical monitor number, 0-indexed
+	# Some bg_set_methods above still not patched/tested to support picking monitor
+	monitor = 0,
 
 	min_prescale_diff = 0.3, # use cubic on larger images (preserving aspect), then lqr
 
@@ -76,11 +81,14 @@ conf = dict(
 import itertools as it, operator as op, functools as ft
 from datetime import datetime
 from tempfile import mkstemp
-from gtk import gdk
 import os, sys, types, glob, collections, random, hashlib
 
 import re
 re_type = type(re.compile(''))
+
+import gi
+gi.require_version('Gdk', '3.0')
+from gi.repository import Gdk
 
 from gimpfu import *
 import gimp
@@ -159,7 +167,7 @@ def process_tags(path):
 	return meta
 
 
-def set_background(path):
+def set_background_from_file(path):
 	# Note that the path is not unlinked, because gconf and xfconf set bg
 	#  asynchronously, so there's no way of knowing when the image will
 	#  actually be used
@@ -207,17 +215,22 @@ def set_background(path):
 				dxc, dyc = edbus.GetVirtualCount(dbus_interface='org.enlightenment.wm.Desktop')
 				edbus = dbus.Interface( edbus,
 					dbus_interface='org.enlightenment.wm.Desktop.Background' )
-				for dx, dy in it.product(xrange(dxc), xrange(dyc)): edbus.Add(0, dx, dy, path)
+				for dx, dy in it.product(xrange(dxc), xrange(dyc)): edbus.Add(conf.monitor, dx, dy, path)
 			except dbus.exceptions.DBusException: pass # no property/object/interface/etc
 
 	if 'x-root-window' in conf.bg_set_methods:
-		## Paint X root window via pygtk
-		pb = gdk.pixbuf_new_from_file(path)
-		pm, mask = pb.render_pixmap_and_mask()
-		win = gdk.get_default_root_window()
-		win.set_back_pixmap(pm, False)
-		win.clear()
-		win.draw_pixbuf(gdk.GC(win), pb, 0, 0, 0, 0, -1, -1)
+		## Paint X root window via gdk/cairo
+		# Did not test it after rewrite from pygtk, just hope that it works
+		import cairo
+		pos = Gdk.Display.get_default().get_monitor(conf.monitor).get_geometry()
+		win = Gdk.get_default_root_window() # stretched across all monitors
+		cairo_region = win.get_clip_region()
+		win_drw_ctx = win.begin_draw_frame(cairo_region)
+		cairo_ctx = win_drw_ctx.get_cairo_context()
+		image = cairo.ImageSurface.create_from_png(path)
+		cairo_ctx.set_source_surface(image, pos.x, pos.y)
+		cairo_ctx.paint()
+		win.end_draw_frame(win_drw_ctx)
 
 
 
@@ -496,7 +509,10 @@ def image_add_label(image, layer_image, meta):
 
 def lqr_wpset(path):
 	random.seed()
-	w, h = gdk.screen_width(), gdk.screen_height()
+
+	dsp = Gdk.Display.get_default()
+	dsp = dsp.get_monitor(conf.monitor).get_geometry()
+	w, h = dsp.width, dsp.height
 
 	path_source, cache_path, cached = path, None, False
 	if conf.cache_dir:
@@ -576,7 +592,7 @@ def lqr_wpset(path):
 		tmp_dir, prefix = prefix.rsplit('/', 1)
 		fd, tmp_file_path = mkstemp(prefix=prefix, suffix=suffix, dir=tmp_dir)
 		pdb.gimp_file_save(image, layer_image, tmp_file_path, tmp_file_path)
-		set_background(tmp_file_path)
+		set_background_from_file(tmp_file_path)
 		os.close(fd)
 		for tmp_file_path in old_files:
 			with open(tmp_file_path, 'wb'): pass # truncate files first, in case something holds open fd
