@@ -61,9 +61,9 @@ conf = dict(
 	# Is here to add variety, especially with some persistent window placement
 	hflip_chance = 0.5,
 
-	# Asterisk will be replaced by temporary id for created images
-	# All files matching the pattern will be a subject to cleanup!
-	result_path = '/tmp/.lqr_wpset_bg.*.png',
+	# All files matching the pattern for current monitor will be a subject to cleanup!
+	# Do not use asterisks in this pattern
+	result_path = '/tmp/.lqr_wpset_bg.{monitor}.{id}.png',
 
 	# Cache for scaled images is disabled by default
 	cache_dir = '',
@@ -86,12 +86,10 @@ import os, sys, types, glob, collections, random, hashlib
 import re
 re_type = type(re.compile(''))
 
-import gi
-gi.require_version('Gdk', '3.0')
-from gi.repository import Gdk
-
 from gimpfu import *
 import gimp
+
+import gtk # gimp uses gobject, so can't use gi here
 
 
 def dump(*data):
@@ -219,18 +217,15 @@ def set_background_from_file(path):
 			except dbus.exceptions.DBusException: pass # no property/object/interface/etc
 
 	if 'x-root-window' in conf.bg_set_methods:
-		## Paint X root window via gdk/cairo
-		# Did not test it after rewrite from pygtk, just hope that it works
-		import cairo
-		pos = Gdk.Display.get_default().get_monitor(conf.monitor).get_geometry()
-		win = Gdk.get_default_root_window() # stretched across all monitors
-		cairo_region = win.get_clip_region()
-		win_drw_ctx = win.begin_draw_frame(cairo_region)
-		cairo_ctx = win_drw_ctx.get_cairo_context()
-		image = cairo.ImageSurface.create_from_png(path)
-		cairo_ctx.set_source_surface(image, pos.x, pos.y)
-		cairo_ctx.paint()
-		win.end_draw_frame(win_drw_ctx)
+		## Paint X root window via pygtk
+		pos = gtk.gdk.DisplayManager().get_default_display()\
+			.get_default_screen().get_monitor_geometry(conf.monitor)
+		pb = gtk.gdk.pixbuf_new_from_file(path)
+		pm, mask = pb.render_pixmap_and_mask()
+		win = gtk.gdk.get_default_root_window()
+		win.set_back_pixmap(pm, False)
+		win.clear()
+		win.draw_pixbuf(gtk.gdk.GC(win), pb, 0, 0, pos.x, pos.y, -1, -1)
 
 
 
@@ -510,8 +505,8 @@ def image_add_label(image, layer_image, meta):
 def lqr_wpset(path):
 	random.seed()
 
-	dsp = Gdk.Display.get_default()
-	dsp = dsp.get_monitor(conf.monitor).get_geometry()
+	dsp = gtk.gdk.DisplayManager().get_default_display()\
+		.get_default_screen().get_monitor_geometry(conf.monitor)
 	w, h = dsp.width, dsp.height
 
 	path_source, cache_path, cached = path, None, False
@@ -587,8 +582,8 @@ def lqr_wpset(path):
 		layer_image = image_add_label(image, layer_image, meta)
 
 		## Save image to a temporary file and set it as a bg, cleanup older images
-		old_files = glob.glob(conf.result_path)
-		prefix, suffix = conf.result_path.split('*', 1)
+		pat = conf.result_path.format(monitor=conf.monitor, id='*')
+		old_files, (prefix, suffix) = glob.glob(pat), pat.split('*', 1)
 		tmp_dir, prefix = prefix.rsplit('/', 1)
 		fd, tmp_file_path = mkstemp(prefix=prefix, suffix=suffix, dir=tmp_dir)
 		pdb.gimp_file_save(image, layer_image, tmp_file_path, tmp_file_path)

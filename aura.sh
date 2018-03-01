@@ -6,6 +6,7 @@ interval=$(( 3 * 3600 )) # 3h
 recheck=$(( 3600 )) # 1h
 activity_timeout=$(( 30 * 60 )) # 30min
 max_log_size=$(( 2**20 )) # 1 MiB, current+last files are kept
+monitor_count=$(xrandr --listactivemonitors 2>/dev/null | awk '/^Monitors:/ {print $2}' || echo 1)
 
 gimp_cmd="nice ionice -c3 gimp"
 
@@ -242,28 +243,31 @@ while :; do
 
 	# bg update
 	ts="$(date --rfc-3339=seconds)"
-	[[ -z "$no_init" ]] && err=next || err=
-	while [[ "$err" = next && "$bg_count" -gt "$bg_used" ]]; do
-		bg_n=$(shuf -n1 -i 0-$bg_count)
-		bg="${bg_list[$bg_n]}"
-		[[ -z "$bg" ]] && continue # not particulary good idea
+	for n in $(seq 0 $(($monitor_count - 1))); do
+		export LQR_WPSET_MONITOR=$n
+		[[ -z "$no_init" ]] && err=next || err=
+		while [[ "$err" = next && "$bg_count" -gt "$bg_used" ]]; do
+			bg_n=$(shuf -n1 -i 0-$bg_count)
+			bg="${bg_list[$bg_n]}"
+			[[ -z "$bg" ]] && continue # not particulary good idea
 
-		# Pop selected bg from array
-		unset bg_list[$bg_n]
-		(( bg_used += 1 ))
+			# Pop selected bg from array
+			unset bg_list[$bg_n]
+			(( bg_used += 1 ))
 
-		# Blacklist check
-		grep -q "^\(.*/\)\?$(basename "$bg")$" "$blacklist" && continue
+			# Blacklist check
+			grep -q "^\(.*/\)\?$(basename "$bg")$" "$blacklist" && continue
 
-		# Actual bg setting
-		log "$log_err" "--- ${ts}: ${bg}"
-		err=$($gimp_cmd -ib "(catch\
-					(gimp-message \"WPS-ERR:gimp_error\")\
-					(gimp-message-set-handler ERROR-CONSOLE)\
-					(python-fu-lqr-wpset RUN-NONINTERACTIVE \"${bg}\"))\
-				(gimp-quit TRUE)" 2>&1 1>/dev/null |
-			tee -a "$log_err" | grep -o 'WPS-ERR:.\+')
-		err="${err#*:}"
+			# Actual bg setting
+			log "$log_err" "--- ${ts}: [monitor-${n}] ${bg}"
+			err=$($gimp_cmd -ib "(catch\
+						(gimp-message \"WPS-ERR:gimp_error\")\
+						(gimp-message-set-handler ERROR-CONSOLE)\
+						(python-fu-lqr-wpset RUN-NONINTERACTIVE \"${bg}\"))\
+					(gimp-quit TRUE)" 2>&1 1>/dev/null |
+				tee -a "$log_err" | grep -o 'WPS-ERR:.\+')
+			err="${err#*:}"
+		done
 	done
 
 	# Check for unexpected errors
