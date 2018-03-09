@@ -13,9 +13,9 @@ from __future__ import unicode_literals, print_function
 # 	(gimp-quit TRUE)' 2>&1 1>/dev/null | tee log | grep WS-ERR
 
 __author__ = 'Mike Kazantsev'
-__copyright__ = 'Copyright 2011-2014, Mike Kazantsev'
+__copyright__ = 'Copyright 2011-2018, Mike Kazantsev'
 __license__ = 'WTFPL'
-__version__ = '0.16'
+__version__ = '0.17'
 __email__ = 'mk.fraggod@gmail.com'
 __status__ = 'beta'
 __blurb__ = 'LQRify to desktop'
