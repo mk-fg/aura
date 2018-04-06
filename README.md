@@ -41,7 +41,7 @@ Thus, some stuff must be installed for the tool to work:
 * [bash](http://gnu.org/software/bash/)
 * [python (2.6 or 2.7, not 3.X)](http://python.org/)
 * [pygtk (2.X series, haven't tested with/ported to gi)](http://www.pygtk.org/)
-* [gimp (2.6-2.8 or later, with python plugin support)](http://gimp.org/)
+* [gimp (2.6-2.10 or later, with python plugin support)](http://gimp.org/)
 * [gimp-lqr-plugin](http://liquidrescale.wikidot.com/)
 
 Everything aside from gimp-lqr-plugin is probably present in any decent
@@ -57,8 +57,7 @@ Optional stuff (will be used if available):
 * [pyexiv2 python module](http://tilloy.net/dev/pyexiv2/) - to use information
 	from EXIF/XMP/IDC tags in labels.
 
-* [dbus-python
-	module](http://www.freedesktop.org/wiki/Software/DBusBindings#dbus-python) -
+* [dbus-python module](http://www.freedesktop.org/wiki/Software/DBusBindings#dbus-python) -
 	to set background in xfce and enlightenment (e17) window managers.
 
 These are probably best to get with the distro package manager.
@@ -77,10 +76,11 @@ Alternatively, newer sources can be checked-out from [github
 repository](https://github.com/mk-fg/aura/).
 
 Actual "installation" is needed for the gimp plugin (lqr_wpset.py), which should
-be put into one of gimp plugin directories, like "~/.gimp-2.8/plug-ins/" (another
-option is usually "/usr/lib/gimp/2.0/plug-ins", but your mileage may vary across
-distros, read the gimp/distro docs if in doubt) and be marked as executable.
-Here's what I mean:
+be put into one of gimp plugin directories, like `~/.gimp-2.8/plug-ins/` (other
+options: `/usr/lib/gimp/2.0/plug-ins`, `~/.config/GIMP/2.10/plug-ins/`, depends
+on gimp version and distro) and be marked as executable.
+
+I.e. something like this:
 
 	mkdir -p ~/.gimp-2.8/plug-ins/
 	cp lqr_wpset.py ~/.gimp-2.8/plug-ins/

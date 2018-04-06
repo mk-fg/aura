@@ -1,16 +1,18 @@
-#!/usr/bin/env python2
+#!/usr/bin/python2
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals, print_function
 
 ####################
 
+# Install (gimp-2.10):
+#   cp lqr_wpset.py ~/.config/GIMP/2.10/plug-ins/ \
+#     && chmod +x ~/.config/GIMP/2.10/plug-ins/lqr_wpset.py
 # Usage examples:
-# cp lqr_wpset.py ~/.gimp-2.6/plug-ins/ && chmod +x ~/.gimp-2.6/plug-ins/lqr_wpset.py
-# gimp -ib '(python-fu-lqr-wpset RUN-NONINTERACTIVE "file.jpg") (gimp-quit TRUE)'
-# gimp -ib '(catch (gimp-message "WS-ERR_FAIL")
-# 		(gimp-message-set-handler ERROR-CONSOLE)
-# 		(python-fu-lqr-wpset RUN-NONINTERACTIVE "file.jpg"))
-# 	(gimp-quit TRUE)' 2>&1 1>/dev/null | tee log | grep WS-ERR
+#   gimp -ib '(python-fu-lqr-wpset RUN-NONINTERACTIVE "file.jpg") (gimp-quit TRUE)'
+#   gimp -ib '(catch (gimp-message "WS-ERR_FAIL")
+#       (gimp-message-set-handler ERROR-CONSOLE)
+#       (python-fu-lqr-wpset RUN-NONINTERACTIVE "file.jpg"))
+#     (gimp-quit TRUE)' 2>&1 1>/dev/null | tee log | grep WS-ERR
 
 __author__ = 'Mike Kazantsev'
 __copyright__ = 'Copyright 2011-2018, Mike Kazantsev'
@@ -680,7 +682,7 @@ register(
 	'lqr_wpset',
 	__blurb__, __description__,
 	__author__, __copyright__,
-	'2014', 'LQRify to desktop', 'RGB*',
+	'2018', 'LQRify to desktop', 'RGB*',
 	[(PF_FILE, 'file_name', 'Input file name', '')], [],
 	lqr_wpset )
 main()
