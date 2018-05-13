@@ -62,6 +62,7 @@ result=0
 while [[ -n "$1" ]]; do
 	case "$1" in
 		-m|--monitor) shift; monitor_id="$1" ;;
+		-m*) monitor_id="${1:2}" ;;
 
 		-d|--daemon) action=daemon ;;
 		--no-fork) no_fork=true ;;
@@ -174,7 +175,7 @@ if [[ "$action" = daemon ]]; then
 fi
 
 
-## Interruptable and extendable (by signals) sleep function hack
+## Interruptable and extensible (by signals) sleep function hack
 trap_action= # set from trap handlers
 sleep_int() {
 	[[ "$action" != daemon ]] && {
@@ -206,6 +207,11 @@ log() {
 	export LQR_WPSET_CACHE_SIZE="$cache_cleanup_keep"
 	export LQR_WPSET_CACHE_CLEANUP="$cache_cleanup_chance"
 }
+
+## Monitors
+mon_seq=0
+[[ -n "$monitor_id" ]] && mon_seq=$monitor_id\
+	|| { [[ $monitor_count -gt 1 ]] && mon_seq=$(seq 0 $(($monitor_count-1))); }
 
 
 ## Main loop
@@ -252,8 +258,6 @@ while :; do
 
 	# bg update
 	ts="$(date --rfc-3339=seconds)"
-	[[ -n "$monitor_id" ]] && mon_seq=$monitor_id\
-		|| mon_seq=$(seq 0 $(($monitor_count - 1)))
 	for n in $mon_seq; do
 		export LQR_WPSET_MONITOR=$n
 		[[ -z "$no_init" ]] && err=next || err=
