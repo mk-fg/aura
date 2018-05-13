@@ -7,6 +7,7 @@ recheck=$(( 3600 )) # 1h
 activity_timeout=$(( 30 * 60 )) # 30min
 max_log_size=$(( 2**20 )) # 1 MiB, current+last files are kept
 monitor_count=$(xrandr --listactivemonitors 2>/dev/null | awk '/^Monitors:/ {print $2}' || echo 1)
+monitor_id= # can be set to only use specific monitor id
 
 gimp_cmd="nice ionice -c3 gimp"
 
@@ -60,9 +61,12 @@ bg_paths=()
 result=0
 while [[ -n "$1" ]]; do
 	case "$1" in
+		-m|--monitor) shift; monitor_id="$1" ;;
+
 		-d|--daemon) action=daemon ;;
 		--no-fork) no_fork=true ;;
 		--no-init) no_init=true ;;
+
 		--favepick)
 			if [[ -z "$2" || ! -d "$2" ]]; then
 				echo >&2 "Not a directory: $2"
@@ -70,6 +74,7 @@ while [[ -n "$1" ]]; do
 			else
 				readarray -t bg_paths < <(sed 's~^[0-9]\+ ~'"${2%/}"'/~' "$favelist")
 			fi ;;
+
 		-n|--next)
 			action=break
 			with_pid kill -HUP
@@ -90,31 +95,32 @@ while [[ -n "$1" ]]; do
 			action=break
 			with_pid kill
 			result=$? ;;
-		-x)
-			reexec=true
-			action=daemon ;;
 		-c|--current)
 			action=break
 			cat "$log_curr" 2>/dev/null ;;
+
+		-x)
+			reexec=true
+			action=daemon ;;
 		-h|--help)
 			action=break force_break=true
 			cat <<EOF
 Usage:
-  $(basename "$0") paths...
-  $(basename "$0") --favepick directory
-  $(basename "$0") ( -d | --daemon ) [ --no-fork ] [ --no-init ] paths...
+  $(basename "$0") [opts] paths...
+  $(basename "$0") [opts] --favepick directory
+  $(basename "$0") [opts] ( -d | --daemon ) [ --no-fork ] [ --no-init ] paths...
   $(basename "$0") [ -n | --next ] [ -c | --current ] \\
     [ -f | --fave ] [ -b | --blacklist ] [ -k | --kill ] [ -h | --help ]
 
 Set background image, randomly selected from the specified paths.
-Option --favepick makes it weighted-random among fave-list (see also --fave).
+--favepick command makes it weighted-random among fave-list (see also --fave).
 Blacklisted paths never get picked (see --blacklist).
 
-Optional --daemon flag starts instance in the background (unless --no-fork is
-also specified), and picks/sets a new image on start (unless --no-init is specified),
+--daemon command starts instance in the background (unless --no-fork is also
+specified), and picks/sets a new image on start (unless --no-init is specified),
 and every ${interval}s afterwards.
 
-Some options (or their one-letter equivalents) can be given instead of paths to
+Some commands (or their one-letter equivalents) can be given instead of paths to
 control already-running instance (started with --daemon flag):
   --next       cycle to then next background immediately.
   --fave       give +1 rating (used with --favepick) to current background image.
@@ -123,7 +129,11 @@ control already-running instance (started with --daemon flag):
   --current    echo current background image name
   --help       this text
 
-Various paths and parameters are specified in the beginning of this script.
+Options:
+  -m/--monitor n  - only use specific monitor id, where 0 is the first one.
+
+Various paths and option defaults are specified at the top of this script,
+and can be overidden via site-local ~/.aurarc file.
 
 EOF
 			;;
@@ -219,17 +229,16 @@ while :; do
 
 	# Update bg_list array on dirs' mtime changes or when it gets empty
 	bg_list_update=
-	if [[ "$bg_used" -eq "$bg_count" ]]; then
-		bg_used=0
-		bg_list_update=true
-	fi
-	[[ -z "$bg_list_update" ]] &&\
-	for dir in "${bg_paths[@]}"; do
-		if [[ "$(stat --printf=%Y "$dir")" -gt "$bg_list_ts" ]]; then
-			bg_list_update=true
-			break
-		fi
-	done
+	[[ "$bg_count" -ne 0 ]] || bg_list_update=t
+	[[ "$bg_used" -eq 0 ]] || {
+		[[ "$(($bg_count-$bg_used))" -ge "$monitor_count" ]]\
+			|| { bg_list_update=t; bg_used=0; }
+		[[ -n "$bg_list_update" ]]\
+			|| for dir in "${bg_paths[@]}"; do
+				[[ "$(stat --printf=%Y "$dir")" -le "$bg_list_ts" ]]\
+					|| { bg_list_update=t; break; }
+			done
+	}
 	if [[ -n "$bg_list_update" ]]; then
 		readarray -t bg_list < <(
 			find "${bg_paths[@]}" -type f \( -name '*.jpg' -o -name '*.png' \) | shuf )
@@ -243,11 +252,14 @@ while :; do
 
 	# bg update
 	ts="$(date --rfc-3339=seconds)"
-	for n in $(seq 0 $(($monitor_count - 1))); do
+	[[ -n "$monitor_id" ]] && mon_seq=$monitor_id\
+		|| mon_seq=$(seq 0 $(($monitor_count - 1)))
+	for n in $mon_seq; do
 		export LQR_WPSET_MONITOR=$n
 		[[ -z "$no_init" ]] && err=next || err=
-		while [[ "$err" = next && "$bg_count" -gt "$bg_used" ]]; do
-			bg_n=$(shuf -n1 -i 0-$bg_count)
+		while [[ "$err" = next ]]; do
+			[[ "$bg_used" -lt "$bg_count" ]] || { err=; break; }
+			bg_n=$(shuf -n1 -i 0-$(($bg_count-1)))
 			bg="${bg_list[$bg_n]}"
 			[[ -z "$bg" ]] && continue # not particulary good idea
 
