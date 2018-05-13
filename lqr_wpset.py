@@ -225,8 +225,8 @@ def set_background_from_file(path):
 		pb = gtk.gdk.pixbuf_new_from_file(path)
 		pm, mask = pb.render_pixmap_and_mask()
 		win = gtk.gdk.get_default_root_window()
-		win.set_back_pixmap(pm, False)
-		win.clear()
+		# win.set_back_pixmap(pm, False)
+		# win.clear()
 		win.draw_pixbuf(gtk.gdk.GC(win), pb, 0, 0, pos.x, pos.y, -1, -1)
 
 
