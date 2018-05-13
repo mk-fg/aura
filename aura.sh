@@ -127,7 +127,7 @@ control already-running instance (started with --daemon flag):
   --fave       give +1 rating (used with --favepick) to current background image.
   --blacklist  add current background to blacklist (skip it from now on).
   --kill       stop currently running instance.
-  --current    echo current background image name
+  --current    echo current background image name(s)
   --help       this text
 
 Options:
@@ -212,6 +212,8 @@ log() {
 mon_seq=0
 [[ -n "$monitor_id" ]] && mon_seq=$monitor_id\
 	|| { [[ $monitor_count -gt 1 ]] && mon_seq=$(seq 0 $(($monitor_count-1))); }
+: >"$log_curr"
+for n in $mon_seq; do echo >>"$log_curr"; done
 
 
 ## Main loop
@@ -257,8 +259,9 @@ while :; do
 	fi
 
 	# bg update
-	ts="$(date --rfc-3339=seconds)"
+	mon_idx=0 ts="$(date --rfc-3339=seconds)"
 	for n in $mon_seq; do
+		(( mon_idx += 1 ))
 		export LQR_WPSET_MONITOR=$n
 		[[ -z "$no_init" ]] && err=next || err=
 		while [[ "$err" = next ]]; do
@@ -283,8 +286,15 @@ while :; do
 					(gimp-quit TRUE)" 2>&1 1>/dev/null |
 				tee -a "$log_err" | grep -o 'WPS-ERR:.\+')
 			err="${err#*:}"
+
+			# History/current entry update
+			[[ -n "$err" ]] || {
+				log "$log_hist" "${ts} (id=${bg_n}, mon=${n}): ${bg}"
+				sed -i "${mon_idx}c $(basename "${bg}")" "$log_curr"
+			}
 		done
 	done
+	no_init= # reset oneshot --no-init flag
 
 	# Check for unexpected errors
 	if [[ -n "$err" ]]; then
@@ -296,9 +306,6 @@ while :; do
 	# Try running the hook script
 	[[ -z "$no_init" && -x "$hook_onchange" ]] && "$hook_onchange"
 
-	# History/current entry update and main cycle delay
-	no_init= # reset oneshot --no-init flag
-	log "$log_hist" "${ts} (id: ${bg_n}): ${bg}"
-	echo "$(basename "${bg}")" >"$log_curr"
+	# Main cycle delay
 	sleep_int "$interval" || break
 done
