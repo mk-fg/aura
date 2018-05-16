@@ -70,7 +70,7 @@ while [[ -n "$1" ]]; do
 
 		--favepick)
 			if [[ -z "$2" || ! -d "$2" ]]; then
-				echo >&2 "Not a directory: $2"
+				echo >&2 "ERROR: not a directory - $2"
 				action=break force_break=true result=1
 			else
 				readarray -t bg_paths < <(sed 's~^[0-9]\+ ~'"${2%/}"'/~' "$favelist")
@@ -80,18 +80,21 @@ while [[ -n "$1" ]]; do
 			action=break
 			with_pid kill -HUP
 			result=$? ;;
-		-f|--fave)
+		-f|--fave|-b|--blacklist|-bn|-nb)
 			action=break
-			printf -v ts '%(%s)T' -1
-			echo "$ts $(cat "$log_curr")" >>"$favelist" ;;
-		-b|--blacklist)
-			action=break
-			echo "$(cat "$log_curr")" >>"$blacklist" ;;
-		-bn|-nb)
-			action=break
-			echo "$(cat "$log_curr")" >>"$blacklist"
-			with_pid kill -HUP
-			result=$? ;;
+			if [[ -z "$monitor_id" && $(wc -l < "$log_curr") -gt 1 ]]; then
+				echo >&2 "ERROR: -m/--monitor-id option required with >1 displays"
+				force_break=true result=1
+			else
+				bg=$(sed -n "${monitor_id:-1}p" "$log_curr")
+				if [[ "$1" = -f || "$1" = --fave ]]; then
+					printf -v ts '%(%s)T' -1
+					echo "$ts $bg" >>"$favelist"
+				else
+					echo "$bg" >>"$blacklist"
+					[[ "$1" = -nb || "$1" = -bn ]] && { with_pid kill -HUP; result=$?; }
+				fi
+			fi ;;
 		-k|--kill)
 			action=break
 			with_pid kill
@@ -110,8 +113,8 @@ Usage:
   $(basename "$0") [opts] paths...
   $(basename "$0") [opts] --favepick directory
   $(basename "$0") [opts] ( -d | --daemon ) [ --no-fork ] [ --no-init ] paths...
-  $(basename "$0") [ -n | --next ] [ -c | --current ] \\
-    [ -f | --fave ] [ -b | --blacklist ] [ -k | --kill ] [ -h | --help ]
+	$(basename "$0") [ { -m | --monitor } n ] [ -f | --fave ] [ -b | --blacklist ]
+  $(basename "$0") [ -n | --next ] [ -c | --current ] [ -k | --kill ] [ -h | --help ]
 
 Set background image, randomly selected from the specified paths.
 --favepick command makes it weighted-random among fave-list (see also --fave).
@@ -124,7 +127,7 @@ and every ${interval}s afterwards.
 Some commands (or their one-letter equivalents) can be given instead of paths to
 control already-running instance (started with --daemon flag):
   --next       cycle to then next background immediately.
-  --fave       give +1 rating (used with --favepick) to current background image.
+  --fave       give +1 rating (used with --favepick) to current bg image.
   --blacklist  add current background to blacklist (skip it from now on).
   --kill       stop currently running instance.
   --current    echo current background image name(s)
@@ -148,11 +151,11 @@ done
 ## Pre-start sanity checks
 [[ ${#bg_paths[@]} -eq 0 ]] && bg_paths=( "$@" )
 if [[ ${#bg_paths[@]} -eq 0 ]]; then
-	echo >&2 "Error: no bg paths specified"
+	echo >&2 "ERROR: no bg paths specified"
 	exit 1
 fi
 if [[ "$action" = daemon ]] && pid_instance=$(with_pid echo); then
-	echo >&2 "Detected already running instance (pid: $pid_instance)"
+	echo >&2 "ERROR: detected already running instance (pid: $pid_instance)"
 	exit 0
 fi
 mkdir -p "$wps_dir"
@@ -209,11 +212,17 @@ log() {
 }
 
 ## Monitors
-mon_seq=0
-[[ -n "$monitor_id" ]] && mon_seq=$monitor_id\
-	|| { [[ $monitor_count -gt 1 ]] && mon_seq=$(seq 0 $(($monitor_count-1))); }
-: >"$log_curr"
-for n in $mon_seq; do echo >>"$log_curr"; done
+mon_seq=0 mon_seq_all=0 log_curr_pad=t
+[[ $monitor_count -gt 1 ]] && mon_seq_all=$(seq 0 $(($monitor_count-1)))
+[[ -n "$monitor_id" ]] && mon_seq=$monitor_id || mon_seq=$mon_seq_all
+[[ action = daemon ]] || {
+	pid_instance=$(with_pid echo)
+	[[ -z "$pid_instance" ]] || log_curr_pad= # don't overwrite stuff from daemon
+}
+[[ -z "$log_curr_pad" ]] || {
+	: >"$log_curr"
+	for n in $mon_seq_all; do echo >>"$log_curr"; done
+}
 
 
 ## Main loop
@@ -253,15 +262,14 @@ while :; do
 		bg_count="${#bg_list[@]}"
 	fi
 	if [[ "$bg_count" -eq 0 ]]; then
-		echo >&2 "Error: no bgz found in the specified paths"
+		echo >&2 "ERROR: no bgz found in the specified paths"
 		sleep_int "$recheck" || break
 		continue
 	fi
 
 	# bg update
-	mon_idx=0 ts="$(date --rfc-3339=seconds)"
+	ts="$(date --rfc-3339=seconds)"
 	for n in $mon_seq; do
-		(( mon_idx += 1 ))
 		export LQR_WPSET_MONITOR=$n
 		[[ -z "$no_init" ]] && err=next || err=
 		while [[ "$err" = next ]]; do
@@ -290,7 +298,7 @@ while :; do
 			# History/current entry update
 			[[ -n "$err" ]] || {
 				log "$log_hist" "${ts} (id=${bg_n}, mon=${n}): ${bg}"
-				sed -i "${mon_idx}c $(basename "${bg}")" "$log_curr"
+				sed -i "$(($n+1))c $(basename "${bg}")" "$log_curr"
 			}
 		done
 	done
@@ -298,7 +306,7 @@ while :; do
 
 	# Check for unexpected errors
 	if [[ -n "$err" ]]; then
-		echo >&2 "Error: Failed setting bg, see log (${log_err}) for details"
+		echo >&2 "ERROR: failed setting bg, see log (${log_err}) for details"
 		sleep_int "$recheck" || break
 		continue
 	fi
