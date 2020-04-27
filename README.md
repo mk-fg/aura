@@ -1,5 +1,22 @@
-Aura - clever desktop background setter tool for art appreciators
+Aura - clever desktop background setter tool
 --------------------
+
+Deprecation notice
+--------------------
+
+Python2 and GIMP python-fu API used here are both deprecated by now and should
+be unavailable in current/future distribution and GIMP releases (GIMP 3.x+).
+
+On my desktop I've replaced this tool with
+[fgbg script](https://github.com/mk-fg/de-setup/blob/master/bin/fgbg)
+(using python3 + [wand-py](https://docs.wand-py.org/)),
+which works almost exactly the same, but much simplier and faster,
+as it doesn't use GIMP. There probably won't be any future updates here.
+
+[fgbg](https://github.com/mk-fg/de-setup/blob/master/bin/fgbg)
+doesn't support all DEs that scripts here did, but that should be easy to add -
+tweak or copy dbus/subprocess calls from here,
+and maybe file an issue or pull request in the repo there about it.
 
 
 Summary
