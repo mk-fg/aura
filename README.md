@@ -18,6 +18,9 @@ doesn't support all DEs that scripts here did, but that should be easy to add -
 tweak or copy dbus/subprocess calls from here,
 and maybe file an issue or pull request in the repo there about it.
 
+For more info on how it worked and deprecation, see
+[post about its image processing pipeline here](https://blog.fraggod.net/2020/05/09/desktop-background-wallpaper-setter-image-processing-pipeline.html).
+
 
 Summary
 --------------------
